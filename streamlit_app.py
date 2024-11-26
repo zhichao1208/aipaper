@@ -1,7 +1,3 @@
-__import__('pysqlite3') # This is a workaround to fix the error "sqlite3 module is not found" on live streamlit.
-import sys 
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3') # This is a workaround to fix the error "sqlite3 module is not found" on live streamlit.
-
 import streamlit as st
 from nlm_client import NotebookLMClient
 from audio_handler import AudioHandler
@@ -9,8 +5,10 @@ from podbean_uploader import PodbeanUploader
 from aipaper_agents import NewsroomCrew
 from config.aipaper_tasks import AIPaperTasks
 import openai
-import requests  # 添加  requests 库
-from aipaper_crew import AIPaperCrew
+import requests  # 添加 requests 库
+import pydub  # 添加 pydub 库
+import pyaudio  # 添加 pyaudio 库
+
 # 初始化 OpenAI API
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 openai_model_name = st.secrets["OPENAI_MODEL_NAME"]  # 获取 OpenAI 模型名称
@@ -27,11 +25,27 @@ topic = st.text_input("请输入主题:", "AI music")
 client = NotebookLMClient(st.secrets["NotebookLM_API_KEY"], webhook_url="YOUR_WEBHOOK_URL")
 audio_handler = AudioHandler()
 podbean_uploader = PodbeanUploader(st.secrets["podbean_client_id"], st.secrets["podbean_client_secret"])
+tasks = AIPaperTasks()
+
+class AIPaperCrew:
+    def __init__(self, topic):
+        self.topic = topic
+        self.newsroom_crew = NewsroomCrew()
+        self.paper_finder_agent = self.newsroom_crew.paper_finder_agent()
+        self.writer_agent = self.newsroom_crew.writer_agent()
+
+    def find_papers(self):
+        find_paper_task = tasks.find_paper_task(agent=self.paper_finder_agent)
+        return find_paper_task.execute(inputs={'topic': self.topic})
+
+    def generate_podcast_content(self, selected_paper):
+        write_task = tasks.write_task(agent=self.writer_agent)
+        return write_task.execute(inputs={'selected_paper': selected_paper})
 
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
-    crew = AIPaperCrew().crew().kickoff(inputs=topic)
+    crew = AIPaperCrew(topic)
     papers = crew.find_papers()
 
     if papers:
@@ -97,16 +111,13 @@ if st.button("检查 NLM 状态"):
             audio_handler.convert_wav_to_mp3(wav_path, mp3_path)
 
 # 步骤 6: 上传到 Podbean
-if 'mp3_path' in locals():  # 确保 mp3_path 已定义
-    podbean_response = podbean_uploader.authorize_file_upload("converted_audio.mp3", mp3_path)
-    if podbean_response:
-        presigned_url = podbean_response['presigned_url']
-        upload_success = podbean_uploader.upload_file_to_presigned_url(presigned_url, mp3_path)
-        if upload_success:
-            st.success("音频上传成功！")
-        else:
-            st.error("音频上传失败。")
+podbean_response = podbean_uploader.authorize_file_upload("converted_audio.mp3", mp3_path)
+if podbean_response:
+    presigned_url = podbean_response['presigned_url']
+    upload_success = podbean_uploader.upload_file_to_presigned_url(presigned_url, mp3_path)
+    if upload_success:
+        st.success("音频上传成功！")
     else:
-        st.error("获取上传授权失败。")
+        st.error("音频上传失败。")
 else:
-    st.error("mp3_path 未定义，无法上传音频。")
+    st.error("获取上传授权失败。")
