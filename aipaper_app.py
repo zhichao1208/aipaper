@@ -1,3 +1,7 @@
+__import__('pysqlite3') # This is a workaround to fix the error "sqlite3 module is not found" on live streamlit.
+import sys 
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3') # This is a workaround to fix the error "sqlite3 module is not found" on live streamlit.
+
 import streamlit as st
 from nlm_client import NotebookLMClient
 from audio_handler import AudioHandler
@@ -8,10 +12,9 @@ import openai
 import requests  # 添加 requests 库
 import pydub  # 添加 pydub 库
 import pyaudio  # 添加 pyaudio 库
-__import__('pysqlite3')
-import sys
 
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+
 # 初始化 OpenAI API
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 openai_model_name = st.secrets["OPENAI_MODEL_NAME"]  # 获取 OpenAI 模型名称
