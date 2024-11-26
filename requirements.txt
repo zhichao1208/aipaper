@@ -7,5 +7,5 @@ streamlit
 openai
 soundfile
 ffmpeg
-pysqlite3-binary
+pysqlite3
 
