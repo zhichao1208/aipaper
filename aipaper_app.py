@@ -40,12 +40,12 @@ class AIPaperCrew:
         self.writer_agent = self.newsroom_crew.writer_agent()
 
     def find_papers(self):
-        find_paper_task = tasks.find_paper_task()
-        return find_paper_task(inputs={'topic': self.topic})
+        find_paper_task = tasks.find_paper_task(agent=self.paper_finder_agent)
+        return find_paper_task.execute(inputs={'topic': self.topic})
 
     def generate_podcast_content(self, selected_paper):
         write_task = tasks.write_task(agent=self.writer_agent)
-        return write_task(inputs={'selected_paper': selected_paper})
+        return write_task.execute(inputs={'selected_paper': selected_paper})
 
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
