@@ -1,3 +1,13 @@
+crewai
+crewai-tools
+pydub
+crewai[agentops]
+requests
+pydantic
+streamlit 
+openai
+soundfile
+ffmpeg
 altair==5.5.0
 attrs==24.2.0
 blinker==1.9.0
