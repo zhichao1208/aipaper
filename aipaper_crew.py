@@ -48,7 +48,7 @@ class AIPaperCrew:
     def find_papers_task(self) -> Task:
         return Task(
             config=self.tasks_config["find_paper_task"],
-            tools=[self.exa_search_tool],
+            tools=[EXASearchTool()],
             agent=self.paper_finder_agent(),
         )
     
@@ -63,7 +63,7 @@ class AIPaperCrew:
     def generate_podcast_content_task(self) -> Task:
         return Task(
             config=self.tasks_config["write_task"],
-            tools=[self.scrape_tool],
+            tools=[ScrapeWebsiteTool()],
             output_json=PodcastContent,
             output_file="podcast_content.json",
             agent=self.writer_agent(),
