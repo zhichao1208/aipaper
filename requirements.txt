@@ -1,0 +1,10 @@
+crewai
+crewai-tools
+pydub
+crewai[agentops]
+requests
+pydantic
+streamlit 
+openai
+soundfile
+ffmpeg
