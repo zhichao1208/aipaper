@@ -1,7 +1,6 @@
 crewai
 crewai-tools
 pydub
-crewai[agentops]
 requests
 pydantic
 streamlit 
