@@ -9,4 +9,3 @@ soundfile
 ffmpeg
 pysqlite3-binary
 requests
-crewai.project
