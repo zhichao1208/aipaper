@@ -116,13 +116,17 @@ if st.button("检查 NLM 状态"):
             audio_handler.convert_wav_to_mp3(wav_path, mp3_path)
 
 # 步骤 6: 上传到 Podbean
-podbean_response = podbean_uploader.authorize_file_upload("converted_audio.mp3", mp3_path)
-if podbean_response:
-    presigned_url = podbean_response['presigned_url']
-    upload_success = podbean_uploader.upload_file_to_presigned_url(presigned_url, mp3_path)
-    if upload_success:
-        st.success("音频上传成功！")
+# 步骤 6: 上传到 Podbean
+if 'mp3_path' in locals():  # 确保 mp3_path 已定义
+    podbean_response = podbean_uploader.authorize_file_upload("converted_audio.mp3", mp3_path)
+    if podbean_response:
+        presigned_url = podbean_response['presigned_url']
+        upload_success = podbean_uploader.upload_file_to_presigned_url(presigned_url, mp3_path)
+        if upload_success:
+            st.success("音频上传成功！")
+        else:
+            st.error("音频上传失败。")
     else:
-        st.error("音频上传失败。")
+        st.error("获取上传授权失败。")
 else:
-    st.error("获取上传授权失败。")
+    st.error("mp3_path 未定义，无法上传音频。")
