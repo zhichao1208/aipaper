@@ -73,8 +73,8 @@ class AIPaperCrew:
     def crew(self) -> Crew:
         """Creates the AIPaper crew"""
         return Crew(
-            agents=self.agents
-            tasks=self.tasks
+            agents=self.agents,
+            tasks=self.tasks,
             process=Process.sequential,
             verbose=True,
             planning=True
