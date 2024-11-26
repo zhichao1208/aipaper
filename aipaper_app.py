@@ -28,10 +28,14 @@ client = NotebookLMClient(st.secrets["NotebookLM_API_KEY"], webhook_url="YOUR_WE
 audio_handler = AudioHandler()
 podbean_uploader = PodbeanUploader(st.secrets["podbean_client_id"], st.secrets["podbean_client_secret"])
 
+inputs = {
+        "topic": f"{topic}"
+}
+
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
-    crew = AIPaperCrew().crew().kickoff(inputs=topic)
+    crew = AIPaperCrew().crew().kickoff(inputs=inputs)
     papers = crew.find_papers()
 
     if papers:
