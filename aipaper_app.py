@@ -40,7 +40,7 @@ class AIPaperCrew:
         self.writer_agent = self.newsroom_crew.writer_agent()
 
     def find_papers(self):
-        find_paper_task = tasks.find_paper_task(agent=self.paper_finder_agent)
+        find_paper_task = tasks.find_paper_task()
         return find_paper_task.execute(inputs={'topic': self.topic})
 
     def generate_podcast_content(self, selected_paper):
