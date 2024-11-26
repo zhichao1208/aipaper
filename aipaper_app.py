@@ -41,11 +41,11 @@ class AIPaperCrew:
 
     def find_papers(self):
         find_paper_task = tasks.find_paper_task()
-        return find_paper_task.execute(inputs={'topic': self.topic})
+        return find_paper_task.run(inputs={'topic': self.topic})
 
     def generate_podcast_content(self, selected_paper):
-        write_task = tasks.write_task(agent=self.writer_agent)
-        return write_task.execute(inputs={'selected_paper': selected_paper})
+        write_task = tasks.write_task()
+        return write_task.run(inputs={'selected_paper': selected_paper})
 
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
@@ -115,7 +115,6 @@ if st.button("检查 NLM 状态"):
             audio_handler.download_audio(audio_url, wav_path)
             audio_handler.convert_wav_to_mp3(wav_path, mp3_path)
 
-# 步骤 6: 上传到 Podbean
 # 步骤 6: 上传到 Podbean
 if 'mp3_path' in locals():  # 确保 mp3_path 已定义
     podbean_response = podbean_uploader.authorize_file_upload("converted_audio.mp3", mp3_path)
