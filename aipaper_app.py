@@ -9,9 +9,8 @@ from podbean_uploader import PodbeanUploader
 from aipaper_agents import NewsroomCrew
 from aipaper_tasks import AIPaperTasks
 import openai
-import requests  # 添加 requests 库
-import pydub  # 添加 pydub 库
-import pyaudio  # 添加 pyaudio 库
+import requests  # 添加  requests 库
+
 
 
 
