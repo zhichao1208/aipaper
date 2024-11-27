@@ -37,25 +37,35 @@ inputs = {
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
     crew = AIPaperCrew().crew().kickoff(inputs=inputs)
-    papers = PapersList.model_validate_json(open("papers_list.json").read())
 
-    if papers:
-        st.success("找到以下论文:")
-        for paper in papers:
-            # 添加类型检查
-            if isinstance(paper, dict) and 'title' in paper and 'paper_link' in paper:
-                st.write(f"- {paper['title']} (链接: {paper['paper_link']})")
-            else:
-                st.error("论文数据格式不正确。")
-        st.session_state.papers = papers  # 保存论文列表到会话状态
-    else:
-        st.error("未找到相关论文，请尝试其他主题。")
+    # 直接读取 JSON 文件
+    try:
+        with open("papers_list.json", "r", encoding="utf-8") as f:
+            papers = json.load(f)  # 直接加载 JSON 数据
+
+        if papers:
+            st.success("找到以下论文:")
+            for paper in papers:
+                # 添加类型检查
+                if isinstance(paper, dict) and 'title' in paper and 'paper_link' in paper:
+                    st.write(f"- {paper['title']} (链接: {paper['paper_link']})")
+                else:
+                    st.error("论文数据格式不正确。")
+            st.session_state.papers = papers  # 保存论文列表到会话状态
+        else:
+            st.error("未找到相关论文，请尝试其他主题。")
+    except FileNotFoundError:
+        st.error("找不到 papers_list.json 文件。请确保文件存在。")
+    except json.JSONDecodeError:
+        st.error("读取 papers_list.json 文件时出错。请检查文件格式。")
+    except Exception as e:
+        st.error(f"发生错误: {e}")
 
 # 步骤 2: 直接读取论文内容
 if 'papers' in st.session_state:
     # 从 chosenpaper.json 中读取论文
     try:
-        with open("chosenpaper.json", "r", encoding="utf-8") as f:
+        with open("chosen_paper.json", "r", encoding="utf-8") as f:
             chosen_paper_data = json.load(f)
 
         # 假设 chosen_paper_data 是一个字典，包含所需的论文信息
@@ -68,9 +78,9 @@ if 'papers' in st.session_state:
         else:
             st.error("未找到任何论文数据。")
     except FileNotFoundError:
-        st.error("找不到 chosenpaper.json 文件。请确保文件存在。")
+        st.error("找不到 chosen_paper.json 文件。请确保文件存在。")
     except json.JSONDecodeError:
-        st.error("读取 chosenpaper.json 文件时出错。请检查文件格式。")
+        st.error("读取 chosen_paper.json 文件时出错。请检查文件格式。")
     except Exception as e:
         st.error(f"发生错误: {e}")
 
