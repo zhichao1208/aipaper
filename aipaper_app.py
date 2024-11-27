@@ -51,17 +51,25 @@ if st.button("查找相关论文"):
 # 步骤 2: 直接读取论文内容
 if 'papers' in st.session_state:
     # 从 chosenpaper.json 中读取论文
-    with open("chosenpaper.json", "r", encoding="utf-8") as f:
-        chosen_paper_data = json.load(f)
+    try:
+        with open("chosenpaper.json", "r", encoding="utf-8") as f:
+            chosen_paper_data = json.load(f)
 
-    # 假设 chosen_paper_data 是一个字典，包含所需的论文信息
-    if chosen_paper_data:
-        selected_paper = chosen_paper_data  # 直接使用 JSON 中的论文数据
+        # 假设 chosen_paper_data 是一个字典，包含所需的论文信息
+        if chosen_paper_data:
+            selected_paper = chosen_paper_data  # 直接使用 JSON 中的论文数据
 
-        if st.button("显示选择的论文内容"):
-            st.write("您选择的论文内容:")
-            st.write(selected_paper['title'])
-            st.write(selected_paper['description'])  # 假设 JSON 中有 content 字
+            if st.button("显示选择的论文内容"):
+                st.write("您选择的论文内容:")
+                st.write(selected_paper.get('content', '未找到内容'))  # 使用 get 方法避免 KeyError
+        else:
+            st.error("未找到任何论文数据。")
+    except FileNotFoundError:
+        st.error("找不到 chosenpaper.json 文件。请确保文件存在。")
+    except json.JSONDecodeError:
+        st.error("读取 chosenpaper.json 文件时出错。请检查文件格式。")
+    except Exception as e:
+        st.error(f"发生错误: {e}")
 
 # 步骤 3: 生成播客内容
 if 'papers' in st.session_state and st.button("生成播客内容"):
