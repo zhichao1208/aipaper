@@ -58,9 +58,13 @@ if st.button("查找相关论文"):
 # 步骤 3: 生成播客内容
 if st.button("生成播客内容"):
     st.write("正在生成播客内容...")
-    
+
+    podcast_inputs = {
+        "papers_list": f"{paper_result}"
+    }
+
     # 第一步：创建生成播客内容的 crew 实例
-    generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
+    generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew(inputs=podcast_inputs)
     
     # 第二步：调用 kickoff 方法
     generate_podcast_content = generate_podcast_crew.kickoff(inputs=st.session_state.papers)  # 使用之前存储的论文列表
