@@ -13,6 +13,17 @@ class PodcastContent(BaseModel):
     audio_link:str
     paper_link:str
 
+class PapersList(BaseModel):
+    title: str
+    description: str
+    paper_link:str
+
+class ChosenPaper(BaseModel):
+    title: str
+    description: str
+    paper_link:str
+
+
 @CrewBase
 class AIPaperCrew:
     """AI Paper Podcast Crew"""
@@ -50,6 +61,8 @@ class AIPaperCrew:
             config=self.tasks_config["find_paper_task"],
             tools=[EXASearchTool()],
             agent=self.paper_finder_agent(),
+            output_json=PapersList,
+            output_file="papers_list.json",
         )
     
     @task
@@ -57,6 +70,8 @@ class AIPaperCrew:
         return Task(
             config=self.tasks_config["research_task"],
             agent=self.researcher_agent(),
+            output_json=ChosenPaper,
+            output_file="chosen_paper.json",
         )
 
     @task

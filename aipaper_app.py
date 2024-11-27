@@ -11,6 +11,8 @@ from config.aipaper_tasks import AIPaperTasks
 import openai
 import requests  # 添加  requests 库
 from aipaper_crew import AIPaperCrew
+from aipaper_crew import PapersList, ChosenPaper, PodcastContent
+import json
 # 初始化 OpenAI API
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 openai_model_name = st.secrets["OPENAI_MODEL_NAME"]  # 获取 OpenAI 模型名称
@@ -36,7 +38,7 @@ inputs = {
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
     crew = AIPaperCrew().crew().kickoff(inputs=inputs)
-    papers = crew.find_papers()
+    papers = PapersList.model_validate_json(open("papers_list.json").read())
 
     if papers:
         st.success("找到以下论文:")
@@ -46,14 +48,20 @@ if st.button("查找相关论文"):
     else:
         st.error("未找到相关论文，请尝试其他主题。")
 
-# 步骤 2: 选择论文
+# 步骤 2: 直接读取论文内容
 if 'papers' in st.session_state:
-    selected_paper_title = st.selectbox("选择一篇论文:", [paper['title'] for paper in st.session_state.papers])
-    selected_paper = next(paper for paper in st.session_state.papers if paper['title'] == selected_paper_title)
+    # 从 chosenpaper.json 中读取论文
+    with open("chosenpaper.json", "r", encoding="utf-8") as f:
+        chosen_paper_data = json.load(f)
 
-    if st.button("显示选择的论文内容"):
-        st.write("您选择的论文内容:")
-        st.write(selected_paper['content'])
+    # 假设 chosen_paper_data 是一个字典，包含所需的论文信息
+    if chosen_paper_data:
+        selected_paper = chosen_paper_data  # 直接使用 JSON 中的论文数据
+
+        if st.button("显示选择的论文内容"):
+            st.write("您选择的论文内容:")
+            st.write(selected_paper['title'])
+            st.write(selected_paper['description'])  # 假设 JSON 中有 content 字
 
 # 步骤 3: 生成播客内容
 if 'papers' in st.session_state and st.button("生成播客内容"):

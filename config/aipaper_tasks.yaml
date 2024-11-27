@@ -15,13 +15,6 @@ research_task:
   expected_output: >
     choice one paper from the list
 
-validate_task:
-  description: >
-    check all these new links if it's working
-    suggest one paper with working link
-  expected_output: >
-    one paper with a replaced link from 'abs' to 'html'
-
 write_task:
   description: >
     Write podcast title and podcast description,
