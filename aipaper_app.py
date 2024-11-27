@@ -7,7 +7,6 @@ from nlm_client import NotebookLMClient
 from audio_handler import AudioHandler
 from podbean_uploader import PodbeanUploader
 from aipaper_agents import NewsroomCrew
-from config.aipaper_tasks import AIPaperTasks
 import openai
 import requests  # 添加  requests 库
 from aipaper_crew import AIPaperCrew
