@@ -72,7 +72,7 @@ if st.button("生成播客内容"):
         
         # 第二步：调用 kickoff 方法
         generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)  # 使用之前存储的论文列表
-
+        st.write("generate_podcast_content:", generate_podcast_content)  # 调试信息
         # 检查结果
         if generate_podcast_content:
             st.session_state.podcast_content = generate_podcast_content  # 将生成内容存储到会话状态
