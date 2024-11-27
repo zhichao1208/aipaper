@@ -62,7 +62,7 @@ if st.button("生成播客内容"):
     # 检查 paper_result 是否已定义
     if 'papers' in st.session_state:
         podcast_inputs = {
-            "papers_list": f"{st.session_state.papers}"  # 使用会话状态中的 papers
+            "papers_list": paper_result  # 使用Markdown格式的论文列表
         }
 
         # 第一步：创建生成播客内容的 crew 实例
