@@ -42,7 +42,7 @@ if st.button("查找相关论文"):
     if papers:
         st.success("找到以下论文:")
         for paper in papers:
-            st.write(f"- {paper['title']} (链接: {paper['link']})")
+            st.write(f"- {paper['title']} (链接: {paper['paper_link']})")
         st.session_state.papers = papers  # 保存论文列表到会话状态
     else:
         st.error("未找到相关论文，请尝试其他主题。")
