@@ -42,7 +42,11 @@ if st.button("查找相关论文"):
     if papers:
         st.success("找到以下论文:")
         for paper in papers:
-            st.write(f"- {paper['title']} (链接: {paper['paper_link']})")
+            # 添加类型检查
+            if isinstance(paper, dict) and 'title' in paper and 'paper_link' in paper:
+                st.write(f"- {paper['title']} (链接: {paper['paper_link']})")
+            else:
+                st.error("论文数据格式不正确。")
         st.session_state.papers = papers  # 保存论文列表到会话状态
     else:
         st.error("未找到相关论文，请尝试其他主题。")

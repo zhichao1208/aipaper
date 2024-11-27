@@ -5,7 +5,8 @@ find_paper_task:
     startPublishedDate is current year to date (2024)
     num_results=5
   expected_output: >
-    get 5 papers from results from category of 'research paper', with link
+    get 5 papers from results from category of 'research paper',
+    add title, paper_link, description to the output.
 
 research_task:
   description: >
@@ -13,7 +14,8 @@ research_task:
     but also think about interesting and impact to podcast listener
     give them score
   expected_output: >
-    choice one paper from the list
+    choice one paper from the list,
+    add title, paper_link, description to the output.
 
 write_task:
   description: >
