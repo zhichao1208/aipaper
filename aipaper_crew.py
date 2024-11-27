@@ -94,7 +94,7 @@ class AIPaperCrew:
             verbose=True,
             planning=True
         ) 
-
+    @crew
     def generate_podcast_content_crew(self) -> Crew:
         """Creates the AIPaper crew"""
         return Crew(
