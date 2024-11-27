@@ -61,6 +61,7 @@ if st.button("生成播客内容"):
 
     # 检查 paper_result 是否已定义
     if 'papers' in st.session_state:
+        paper_result = st.session_state.papers  # 确保从会话状态中获取 paper_result
         podcast_inputs = {
             "papers_list": paper_result  # 使用Markdown格式的论文列表
         }
