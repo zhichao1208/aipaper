@@ -77,8 +77,7 @@ if st.button("生成播客内容"):
         if generate_podcast_content:
             st.session_state.podcast_content = generate_podcast_content  # 将生成内容存储到会话状态
             st.success("播客内容生成成功！")
-            st.write("播客标题:", st.session_state.podcast_content['title'])
-            st.write("播客描述:", st.session_state.podcast_content['description'])
+            st.write(st.session_state.podcast_content)
         else:
             st.error("生成播客内容失败。")
     else:

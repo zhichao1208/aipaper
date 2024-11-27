@@ -75,7 +75,9 @@ class AIPaperCrew:
         return Task(
             config=self.tasks_config["write_task"],
             tools=[ScrapeWebsiteTool()],
-            agent=self.writer_agent()
+            agent=self.writer_agent(),
+            output_schema=PodcastContent,
+            output_file="podcast_content.json"
         )
 
     @crew
