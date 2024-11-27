@@ -87,6 +87,7 @@ class AIPaperCrew:
     @crew
     def find_papers_crew(self) -> Crew:
         """Creates the AIPaper crew"""
+        print("find_papers_crew method called")
         return Crew(
             agents=[self.paper_finder_agent()],
             tasks=[self.find_papers_task()],
