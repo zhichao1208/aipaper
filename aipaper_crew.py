@@ -85,11 +85,21 @@ class AIPaperCrew:
         )
 
     @crew
-    def crew(self) -> Crew:
+    def find_papers_crew(self) -> Crew:
         """Creates the AIPaper crew"""
         return Crew(
-            agents=self.agents,
-            tasks=self.tasks,
+            agents=[self.paper_finder_agent()],
+            tasks=[self.find_papers_task()],
+            process=Process.sequential,
+            verbose=True,
+            planning=True
+        ) 
+
+    def generate_podcast_content_crew(self) -> Crew:
+        """Creates the AIPaper crew"""
+        return Crew(
+            agents=[self.researcher_agent(),self.writer_agent()],
+            tasks=[self.research_task(),self.generate_podcast_content_task()],
             process=Process.sequential,
             verbose=True,
             planning=True

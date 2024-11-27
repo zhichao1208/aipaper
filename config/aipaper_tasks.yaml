@@ -6,11 +6,12 @@ find_paper_task:
     num_results=5
   expected_output: >
     get 5 papers from results from category of 'research paper',
-    add title, paper_link, description to the output.
+    add title, paper_link, description for these five papers to the output,
+    format the output as markdown.
 
 research_task:
   description: >
-    Rank the papers from find_paper_task, not just based on the publish date and total Citations,
+    Rank the papers from {papers_list}, not just based on the publish date and total Citations,
     but also think about interesting and impact to podcast listener
     give them score
   expected_output: >

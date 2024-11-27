@@ -36,73 +36,32 @@ inputs = {
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
-    crew = AIPaperCrew().crew().kickoff(inputs=inputs)
+    find_papers_crew = AIPaperCrew().find_papers_crew().kickoff(inputs=inputs)
 
-    # 直接读取 JSON 文件
-    try:
-        with open("papers_list.json", "r", encoding="utf-8") as f:
-            papers = json.load(f)  # 直接加载 JSON 数据
+if find_papers_crew:
+    st.session_state.papers = find_papers_crew  # 将查找结果存储到会话状态
+    st.success("找到相关论文！")
+    st.write("相关论文列表:")
+    st.markdown(find_papers_crew)  # 显示论文标题
+else:
+    st.error("未找到相关论文。")
 
-        if papers:
-            st.success("找到以下论文:")
-            for paper in papers:
-                # 添加类型检查
-                if isinstance(paper, dict) and 'title' in paper and 'paper_link' in paper:
-                    st.write(f"- {paper['title']} (链接: {paper['paper_link']})")
-                else:
-                    st.error("论文数据格式不正确。")
-            st.session_state.papers = papers  # 保存论文列表到会话状态
-        else:
-            st.error("未找到相关论文，请尝试其他主题。")
-    except FileNotFoundError:
-        st.error("找不到 papers_list.json 文件。请确保文件存在。")
-    except json.JSONDecodeError:
-        st.error("读取 papers_list.json 文件时出错。请检查文件格式。")
-    except Exception as e:
-        st.error(f"发生错误: {e}")
+generate_podcast_content_crew = AIPaperCrew().generate_podcast_content_crew().kickoff(inputs=find_papers_crew)
 
-# 步骤 2: 直接读取论文内容
-if 'papers' in st.session_state:
-    # 从 chosenpaper.json 中读取论文
-    try:
-        with open("chosen_paper.json", "r", encoding="utf-8") as f:
-            chosen_paper_data = json.load(f)
+if generate_podcast_content_crew:
+    st.session_state.podcast_content = generate_podcast_content_crew  # 将生成内容存储到会话状态
+    st.success("播客内容生成成功！")
+    st.write("播客标题:", st.session_state.podcast_content['title'])
+    st.write("播客描述:", st.session_state.podcast_content['description'])
+else:
+    st.error("生成播客内容失败。")
 
-        # 假设 chosen_paper_data 是一个字典，包含所需的论文信息
-        if chosen_paper_data:
-            selected_paper = chosen_paper_data  # 直接使用 JSON 中的论文数据
 
-            if st.button("显示选择的论文内容"):
-                st.write("您选择的论文内容:")
-                st.write(selected_paper.get('content', '未找到内容'))  # 使用 get 方法避免 KeyError
-        else:
-            st.error("未找到任何论文数据。")
-    except FileNotFoundError:
-        st.error("找不到 chosen_paper.json 文件。请确保文件存在。")
-    except json.JSONDecodeError:
-        st.error("读取 chosen_paper.json 文件时出错。请检查文件格式。")
-    except Exception as e:
-        st.error(f"发生错误: {e}")
-
-# 步骤 3: 生成播客内容
-if 'papers' in st.session_state and st.button("生成播客内容"):
-    st.write("正在生成播客内容...")
-    crew = AIPaperCrew(topic)
-    podcast_content = crew.generate_podcast_content(selected_paper)
-
-    if podcast_content:
-        st.success("播客内容生成成功！")
-        st.write("播客标题:", podcast_content['title'])
-        st.write("播客描述:", podcast_content['description'])
-        st.session_state.podcast_content = podcast_content  # 保存播客内容到会话状态
-    else:
-        st.error("生成播客内容失败。")
 
 # 步骤 4: 发送内容到 NLM
 if 'podcast_content' in st.session_state and st.button("发送内容到 NLM"):
     resources = [
-        {"content": st.session_state.podcast_content['description'], "type": "text"},
-        {"content": selected_paper['link'], "type": "website"},
+        {"content": generate_podcast_content_crew['link'], "type": "website"},
     ]
     text = st.session_state.podcast_content['prompt']
     request_id = client.send_content(resources, text)
