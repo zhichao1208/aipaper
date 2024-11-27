@@ -9,8 +9,7 @@ from podbean_uploader import PodbeanUploader
 from aipaper_agents import NewsroomCrew
 import openai
 import requests  # 添加  requests 库
-from aipaper_crew import AIPaperCrew
-from aipaper_crew import PapersList, ChosenPaper, PodcastContent
+from aipaper_crew import AIPaperCrew, PapersList, ChosenPaper, PodcastContent
 import json
 # 初始化 OpenAI API
 openai.api_key = st.secrets["OPENAI_API_KEY"]
@@ -36,32 +35,42 @@ inputs = {
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
-    find_papers_crew = AIPaperCrew().find_papers_crew().kickoff(inputs=inputs)
-
-if find_papers_crew:
-    st.session_state.papers = find_papers_crew  # 将查找结果存储到会话状态
+ # 第一步：创建 crew 实例
+    find_papers_crew = AIPaperCrew().find_papers_crew()
+    
+    # 第二步：调用 kickoff 方法
+    paper_result = find_papers_crew.kickoff(inputs=inputs)
+if paper_result:
+    st.session_state.papers = paper_result  # 将查找结果存储到会话状态
     st.success("找到相关论文！")
     st.write("相关论文列表:")
-    st.markdown(find_papers_crew)  # 显示论文标题
+    st.markdown(paper_result)  # 显示论文标题
 else:
     st.error("未找到相关论文。")
 
-generate_podcast_content_crew = AIPaperCrew().generate_podcast_content_crew().kickoff(inputs=find_papers_crew)
+# 步骤 3: 生成播客内容
+if st.button("生成播客内容"):
+    st.write("正在生成播客内容...")
+    
+    # 第一步：创建生成播客内容的 crew 实例
+    generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
+    
+    # 第二步：调用 kickoff 方法
+    generate_podcast_content = generate_podcast_crew.kickoff(inputs=st.session_state.papers)  # 使用之前存储的论文列表
 
-if generate_podcast_content_crew:
-    st.session_state.podcast_content = generate_podcast_content_crew  # 将生成内容存储到会话状态
-    st.success("播客内容生成成功！")
-    st.write("播客标题:", st.session_state.podcast_content['title'])
-    st.write("播客描述:", st.session_state.podcast_content['description'])
-else:
-    st.error("生成播客内容失败。")
-
-
+    # 检查结果
+    if generate_podcast_content:
+        st.session_state.podcast_content = generate_podcast_content  # 将生成内容存储到会话状态
+        st.success("播客内容生成成功！")
+        st.write("播客标题:", st.session_state.podcast_content['title'])
+        st.write("播客描述:", st.session_state.podcast_content['description'])
+    else:
+        st.error("生成播客内容失败。")
 
 # 步骤 4: 发送内容到 NLM
 if 'podcast_content' in st.session_state and st.button("发送内容到 NLM"):
     resources = [
-        {"content": generate_podcast_content_crew['link'], "type": "website"},
+        {"content": st.session_state.podcast_content['link'], "type": "website"},
     ]
     text = st.session_state.podcast_content['prompt']
     request_id = client.send_content(resources, text)
