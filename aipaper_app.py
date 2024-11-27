@@ -59,24 +59,28 @@ if st.button("查找相关论文"):
 if st.button("生成播客内容"):
     st.write("正在生成播客内容...")
 
-    podcast_inputs = {
-        "papers_list": f"{paper_result}"
-    }
+    # 检查 paper_result 是否已定义
+    if 'papers' in st.session_state:
+        podcast_inputs = {
+            "papers_list": f"{st.session_state.papers}"  # 使用会话状态中的 papers
+        }
 
-    # 第一步：创建生成播客内容的 crew 实例
-    generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew(inputs=podcast_inputs)
-    
-    # 第二步：调用 kickoff 方法
-    generate_podcast_content = generate_podcast_crew.kickoff(inputs=st.session_state.papers)  # 使用之前存储的论文列表
+        # 第一步：创建生成播客内容的 crew 实例
+        generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew(inputs=podcast_inputs)
+        
+        # 第二步：调用 kickoff 方法
+        generate_podcast_content = generate_podcast_crew.kickoff(inputs=st.session_state.papers)  # 使用之前存储的论文列表
 
-    # 检查结果
-    if generate_podcast_content:
-        st.session_state.podcast_content = generate_podcast_content  # 将生成内容存储到会话状态
-        st.success("播客内容生成成功！")
-        st.write("播客标题:", st.session_state.podcast_content['title'])
-        st.write("播客描述:", st.session_state.podcast_content['description'])
+        # 检查结果
+        if generate_podcast_content:
+            st.session_state.podcast_content = generate_podcast_content  # 将生成内容存储到会话状态
+            st.success("播客内容生成成功！")
+            st.write("播客标题:", st.session_state.podcast_content['title'])
+            st.write("播客描述:", st.session_state.podcast_content['description'])
+        else:
+            st.error("生成播客内容失败。")
     else:
-        st.error("生成播客内容失败。")
+        st.error("未找到相关论文，无法生成播客内容。")
 
 # 步骤 4: 发送内容到 NLM
 if 'podcast_content' in st.session_state and st.button("发送内容到 NLM"):
