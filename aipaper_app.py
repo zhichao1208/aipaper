@@ -35,20 +35,25 @@ inputs = {
 # 步骤 1: 查找论文
 if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
- # 第一步：创建 crew 实例
+    
+    # 第一步：创建 crew 实例
     find_papers_crew = AIPaperCrew().find_papers_crew()
-    st.write("find_papers_crew 实例:", find_papers_crew)  # 调试信息
-
+    
     # 第二步：调用 kickoff 方法
-    paper_result = find_papers_crew.kickoff(inputs=inputs)
-
-if paper_result:
-    st.session_state.papers = paper_result  # 将查找结果存储到会话状态
-    st.success("找到相关论文！")
-    st.write("相关论文列表:")
-    st.markdown(paper_result)  # 显示论文标题
-else:
-    st.error("未找到相关论文。")
+    try:
+        paper_result = find_papers_crew.kickoff(inputs=inputs)  # 尝试调用 kickoff 方法
+        st.write("paper_result:", paper_result)  # 调试信息
+        
+        # 检查 paper_result 是否有内容
+        if paper_result:  # 确保 paper_result 不为空
+            st.session_state.papers = paper_result  # 将查找结果存储到会话状态
+            st.success("找到相关论文！")
+            st.write("相关论文列表:")
+            st.markdown(paper_result)  # 显示论文标题
+        else:
+            st.error("未找到相关论文。")
+    except Exception as e:
+        st.error(f"调用 kickoff 方法时发生错误: {e}")  # 捕获并显示错误信息
 
 # 步骤 3: 生成播客内容
 if st.button("生成播客内容"):
