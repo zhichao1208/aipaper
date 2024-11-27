@@ -37,9 +37,11 @@ if st.button("查找相关论文"):
     st.write("正在查找相关论文...")
  # 第一步：创建 crew 实例
     find_papers_crew = AIPaperCrew().find_papers_crew()
-    
+    st.write("find_papers_crew 实例:", find_papers_crew)  # 调试信息
+
     # 第二步：调用 kickoff 方法
     paper_result = find_papers_crew.kickoff(inputs=inputs)
+
 if paper_result:
     st.session_state.papers = paper_result  # 将查找结果存储到会话状态
     st.success("找到相关论文！")
