@@ -95,20 +95,32 @@ if st.button("生成播客内容"):
 
 # 步骤 4: 发送内容到 NLM
 if 'podcast_content' in st.session_state and st.button("发送内容到 NLM"):
-    resources = [
-        {"content": st.session_state.podcast_content['paper_link'], "type": "website"},
-    ]
-    text = st.session_state.podcast_content['prompt']
-    request_id = client.send_content(resources, text)
-
-    if request_id:
-        st.success("内容已发送到 NLM，您将通过 Webhook 接收状态更新。")
-    else:
-        st.error("发送内容失败。")
+    try:
+        # 解析 podcast_content
+        content_data = json.loads(str(st.session_state.podcast_content))
+        
+        resources = [
+            {"content": content_data.get('paper_link', ''), "type": "website"}
+        ]
+        text = content_data.get('prompt_text', '')
+        
+        if text and resources[0]['content']:
+            request_id = client.send_content(resources, text)
+            if request_id:
+                st.session_state.request_id = request_id  # 保存 request_id 到 session state
+                st.success("内容已发送到 NLM，您将通过 Webhook 接收状态更新。")
+            else:
+                st.error("发送内容失败。")
+        else:
+            st.error("缺少必要的内容数据。")
+    except json.JSONDecodeError:
+        st.error("无法解析播客内容数据。")
+    except Exception as e:
+        st.error(f"处理内容时出错: {str(e)}")
 
 # 步骤 5: 处理 NLM 状态更新
-if st.button("检查 NLM 状态"):
-    status_data = client.check_status(request_id)
+if 'request_id' in st.session_state and st.button("检查 NLM 状态"):
+    status_data = client.check_status(st.session_state.request_id)
 
     if status_data:
         st.write("状态更新:")
