@@ -17,7 +17,7 @@ load_dotenv()
 
 # 初始化 OpenAI API
 openai.api_key = os.getenv("OPENAI_API_KEY")
-openai_model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo")  # 默认使用gpt-3.5-turbo
+openai_model_name = os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo")
 exa_api_key = os.getenv("EXA_API_KEY")
 serper_api_key = os.getenv("SERPER_API_KEY")
 
@@ -26,8 +26,96 @@ if not openai.api_key:
     st.error("请在.env文件中设置OPENAI_API_KEY")
     st.stop()
 
-# 初始化
-st.title("AI Paper Podcast Generator")
+# 初始化session state
+if 'podcast_content' not in st.session_state:
+    st.session_state.podcast_content = None
+if 'request_id' not in st.session_state:
+    st.session_state.request_id = None
+
+# 页面标题和说明
+st.title("🎙️ AI Paper Podcast Generator")
+st.markdown("将学术论文转换为引人入胜的播客内容。")
+
+# 创建实例
+client = NotebookLMClient(os.getenv("NotebookLM_API_KEY"))
+audio_handler = AudioHandler()
+podbean_uploader = PodbeanUploader(os.getenv("PODBEAN_CLIENT_ID"), os.getenv("PODBEAN_CLIENT_SECRET"))
+
+# 使用tabs创建选项卡
+tab1, tab2 = st.tabs(["🔍 主题搜索", "🔗 直接输入论文链接"])
+
+with tab1:
+    st.header("通过主题搜索论文")
+    topic = st.text_input("输入研究主题:", placeholder="例如: AI music, Quantum Computing...")
+    
+    if st.button("🔍 搜索相关论文", key="search_button"):
+        with st.spinner("正在搜索相关论文..."):
+            crew = AIPaperCrew(topic)
+            papers = crew.find_papers()
+            
+            if papers:
+                st.success("找到以下论文:")
+                for paper in papers:
+                    st.write(f"📄 {paper['title']}")
+                    st.write(f"🔗 {paper['link']}")
+                    st.write("---")
+                st.session_state.papers = papers
+            else:
+                st.error("未找到相关论文，请尝试其他主题。")
+
+with tab2:
+    st.header("直接输入论文链接")
+    paper_link = st.text_input(
+        "输入论文链接:",
+        placeholder="https://arxiv.org/abs/2312.12345"
+    )
+    
+    if st.button("📝 生成播客内容", key="generate_button"):
+        with st.spinner("正在使用AI生成播客内容..."):
+            podcast_content = generate_content_with_chatgpt(paper_link)
+            
+            if podcast_content:
+                st.success("✨ 内容生成成功！")
+                
+                # 显示生成的内容
+                with st.expander("查看生成的内容", expanded=True):
+                    st.write("📌 **播客标题:**", podcast_content['title'])
+                    st.write("📝 **播客描述:**", podcast_content['description'])
+                
+                st.session_state.podcast_content = podcast_content
+                
+                # 添加发送到NLM的按钮
+                if st.button("🎵 生成音频", key="audio_button"):
+                    with st.spinner("正在生成音频..."):
+                        resources = [
+                            {"content": podcast_content['description'], "type": "text"},
+                            {"content": podcast_content['paper_link'], "type": "website"},
+                        ]
+                        text = podcast_content['prompt_text']
+                        request_id = client.send_content(resources, text)
+                        
+                        if request_id:
+                            st.session_state.request_id = request_id
+                            st.success("✨ 内容已发送到NLM，正在生成音频...")
+                        else:
+                            st.error("发送内容失败。")
+            else:
+                st.error("生成内容失败，请检查论文链接是否正确。")
+
+# 如果存在request_id，显示音频状态
+if st.session_state.request_id:
+    st.markdown("---")
+    st.subheader("🎵 音频生成状态")
+    if st.button("检查音频状态", key="check_status"):
+        with st.spinner("正在检查音频生成状态..."):
+            status = client.check_status(st.session_state.request_id)
+            if status:
+                st.write("当前状态:", status.get("status", "未知"))
+                if status.get("audio_url"):
+                    st.success("🎉 音频生成完成！")
+                    st.audio(status["audio_url"])
+            else:
+                st.warning("无法获取状态信息，请稍后再试。")
 
 def normalize_content(content):
     """规范化内容字段，确保字段名称的一致性"""
@@ -81,49 +169,3 @@ def generate_content_with_chatgpt(paper_link):
     except Exception as e:
         st.error(f"生成内容时发生错误: {str(e)}")
         return None
-
-# 创建实例
-client = NotebookLMClient(st.secrets["NotebookLM_API_KEY"], webhook_url="YOUR_WEBHOOK_URL")
-audio_handler = AudioHandler()
-podbean_uploader = PodbeanUploader(st.secrets["podbean_client_id"], st.secrets["podbean_client_secret"])
-tasks = AIPaperTasks()
-
-# 添加选项卡以选择输入方式
-input_mode = st.radio("选择输入方式:", ["主题搜索", "直接输入论文链接"])
-
-if input_mode == "主题搜索":
-    # 原有的主题搜索功能
-    topic = st.text_input("请输入主题:", "AI music")
-    # ... 原有的AIPaperCrew相关代码 ...
-
-else:  # 直接输入论文链接
-    paper_link = st.text_input("请输入论文链接:", "https://arxiv.org/abs/")
-    
-    if st.button("生成播客内容"):
-        with st.spinner("正在使用ChatGPT生成内容..."):
-            podcast_content = generate_content_with_chatgpt(paper_link)
-            
-            if podcast_content:
-                st.success("内容生成成功！")
-                st.write("播客标题:", podcast_content['title'])
-                st.write("播客描述:", podcast_content['description'])
-                st.session_state.podcast_content = podcast_content
-                
-                # 添加发送到NLM的按钮
-                if st.button("发送到NLM生成音频"):
-                    resources = [
-                        {"content": podcast_content['description'], "type": "text"},
-                        {"content": podcast_content['paper_link'], "type": "website"},
-                    ]
-                    text = podcast_content['prompt_text']  # 使用prompt_text字段
-                    request_id = client.send_content(resources, text)
-                    
-                    if request_id:
-                        st.session_state.request_id = request_id
-                        st.success("✨ 内容已发送到NLM，正在生成音频...")
-                    else:
-                        st.error("发送内容失败。")
-            else:
-                st.error("生成内容失败，请检查论文链接是否正确。")
-
-# 音频状态检查和处理部分保持不变
