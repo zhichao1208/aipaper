@@ -122,7 +122,7 @@ with col1:
                     with st.expander("📄 查看论文列表", expanded=True):
                         st.markdown(paper_result)
                 else:
-                    st.error("❌ 未��相关论文。")
+                    st.error("❌ 未相关论文。")
             except Exception as e:
                 st.error(f"❌ 搜索过程中出错: {str(e)}")
 
@@ -165,27 +165,38 @@ if 'podcast_content' in st.session_state:
         if st.button("🎙️ 生成音频"):
             with st.spinner("正在生成音频..."):
                 try:
-                    content_data = json.loads(str(st.session_state.podcast_content))
-                    st.write("Debug - Content Data:", content_data)
+                    # 调试输出原始内容
+                    st.write("Debug - Raw Content:", st.session_state.podcast_content)
+                    
+                    # 处理 podcast_content
+                    if isinstance(st.session_state.podcast_content, str):
+                        content_data = json.loads(st.session_state.podcast_content)
+                    elif isinstance(st.session_state.podcast_content, dict):
+                        content_data = st.session_state.podcast_content
+                    else:
+                        raise ValueError(f"未知的内容格式: {type(st.session_state.podcast_content)}")
+                    
+                    st.write("Debug - Parsed Content Data:", content_data)
                     
                     # 验证 content_data 格式
                     if not isinstance(content_data, dict):
                         st.error("❌ 播客内容格式错误")
                     else:
-                        resources = [
-                            {"content": content_data.get('paper_link', ''), "type": "website"}
-                        ]
-                        text = content_data.get('prompt_text', '')
-                        
                         # 验证必要字段
-                        if not all([
-                            content_data.get('title'),
-                            content_data.get('description'),
-                            content_data.get('paper_link'),
-                            content_data.get('prompt_text')
-                        ]):
-                            st.error("❌ 播客内容缺少必要字段")
+                        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
+                        missing_fields = [field for field in required_fields if not content_data.get(field)]
+                        
+                        if missing_fields:
+                            st.error(f"❌ 播客内容缺少必要字段: {', '.join(missing_fields)}")
                         else:
+                            resources = [
+                                {"content": content_data['paper_link'], "type": "website"}
+                            ]
+                            text = content_data['prompt_text']
+                            
+                            st.write("Debug - Resources:", resources)
+                            st.write("Debug - Text:", text)
+                            
                             # 验证 API 密钥
                             if not st.secrets.get("NotebookLM_API_KEY"):
                                 st.error("❌ NotebookLM API 密钥未设置")
@@ -205,10 +216,12 @@ if 'podcast_content' in st.session_state:
                                     st.session_state.audio_status = {"status": "processing"}
                                     st.success("✨ 音频生成请求已发送！")
                     
-                except json.JSONDecodeError:
-                    st.error("❌ 播客内容 JSON 解析失败")
+                except json.JSONDecodeError as e:
+                    st.error(f"❌ 播客内容 JSON 解析失败: {str(e)}")
+                    st.write("Debug - JSON Error Content:", st.session_state.podcast_content)
                 except Exception as e:
                     st.error(f"❌ 音频生成过程中出错: {str(e)}")
+                    st.write("Debug - Error Details:", str(e))
     
     with audio_col2:
         if 'audio_status' in st.session_state:
