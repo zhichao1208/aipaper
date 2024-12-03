@@ -166,67 +166,54 @@ if 'podcast_content' in st.session_state:
             with st.spinner("正在生成音频..."):
                 try:
                     content_data = json.loads(str(st.session_state.podcast_content))
-                    st.write("Debug - Content Data:", content_data)  # 调试输出
+                    st.write("Debug - Content Data:", content_data)
                     
+                    # 验证 content_data 格式
+                    if not isinstance(content_data, dict):
+                        st.error("❌ 播客内容格式错误")
+                        return
+                        
                     resources = [
                         {"content": content_data.get('paper_link', ''), "type": "website"}
                     ]
                     text = content_data.get('prompt_text', '')
                     
-                    st.write("Debug - Resources:", resources)  # 调试输出
-                    st.write("Debug - Text:", text)  # 调试输出
+                    st.write("Debug - Resources:", resources)
+                    st.write("Debug - Text:", text)
                     
-                    # 修改验证逻辑
-                    is_valid = True
-                    if not text.strip():
-                        st.error("❌ 生成的文本内容为空")
-                        is_valid = False
+                    # 验证必要字段
+                    if not all([
+                        content_data.get('title'),
+                        content_data.get('description'),
+                        content_data.get('paper_link'),
+                        content_data.get('prompt_text')
+                    ]):
+                        st.error("❌ 播客内容缺少必要字段")
+                        return
                     
-                    if not resources[0]["content"].strip():
-                        st.error("❌ 论文链接为空")
-                        is_valid = False
-                    
-                    if is_valid:
-                        client = NotebookLMClient(
-                            st.secrets["NotebookLM_API_KEY"],
-                            webhook_url="http://localhost:5000/webhook"
-                        )
+                    # 验证 API 密钥
+                    if not st.secrets.get("NotebookLM_API_KEY"):
+                        st.error("❌ NotebookLM API 密钥未设置")
+                        return
                         
-                        request_id = client.send_content(resources, text)
-                        st.write("Debug - Request ID:", request_id)  # 调试输出
+                    client = NotebookLMClient(
+                        st.secrets["NotebookLM_API_KEY"],
+                        webhook_url="http://localhost:5000/webhook"
+                    )
+                    
+                    request_id = client.send_content(resources, text)
+                    st.write("Debug - Request ID:", request_id)
+                    
+                    if not request_id:
+                        st.error("❌ 发送音频生成请求失败。")
+                        return
                         
-                        if request_id:
-                            st.session_state.request_id = request_id
-                            st.session_state.audio_status = {"status": "processing"}
-                            st.success("✨ 音频生成请求已发送！")
-                            
-                            # 启动状态检查
-                            def check_status():
-                                while st.session_state.audio_status["status"] == "processing":
-                                    try:
-                                        status_data = client.check_status(request_id)
-                                        if status_data:
-                                            st.session_state.audio_status = {
-                                                "status": status_data.get("status"),
-                                                "updated_on": status_data.get("updated_on"),
-                                                "audio_url": status_data.get("audio_url"),
-                                                "error_message": status_data.get("error_message")
-                                            }
-                                            if status_data.get("audio_url"):
-                                                st.session_state.audio_url = status_data.get("audio_url")
-                                                break
-                                            elif status_data.get("error_message"):
-                                                break
-                                    except Exception as e:
-                                        print(f"状态检查出错: {str(e)}")
-                                    time.sleep(20)
-                            
-                            # 在后台线程中运行状态检查
-                            status_thread = threading.Thread(target=check_status)
-                            status_thread.daemon = True
-                            status_thread.start()
-                        else:
-                            st.error("❌ 发送音频生成请求失败。")
+                    st.session_state.request_id = request_id
+                    st.session_state.audio_status = {"status": "processing"}
+                    st.success("✨ 音频生成请求已发送！")
+                    
+                except json.JSONDecodeError:
+                    st.error("❌ 播客内容 JSON 解析失败")
                 except Exception as e:
                     st.error(f"❌ 音频生成过程中出错: {str(e)}")
     
