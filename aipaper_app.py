@@ -17,6 +17,56 @@ import time
 import threading
 from datetime import datetime
 import re
+import html
+
+# 在导入部分之后，页面配置之前添加
+def parse_podbean_feed(feed_url: str) -> list:
+    """
+    解析 Podbean Feed 获取播客列表
+    
+    Args:
+        feed_url: Podbean feed URL
+        
+    Returns:
+        list: 播客列表
+    """
+    try:
+        response = requests.get(feed_url)
+        response.raise_for_status()
+        
+        # 使用正则表达式提取每个播客条目
+        episodes = []
+        # 匹配 CDATA 内容和普通内容
+        pattern = r'<item>.*?<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>.*?<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>.*?<pubDate>(.*?)</pubDate>.*?<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>.*?<itunes:duration>(.*?)</itunes:duration>.*?</item>'
+        
+        episode_matches = re.finditer(pattern, response.text, re.DOTALL)
+        
+        for match in episode_matches:
+            try:
+                # 清理和解码 HTML 实体
+                title = html.unescape(match.group(1).strip())
+                link = html.unescape(match.group(2).strip())
+                date = datetime.strptime(match.group(3).strip(), '%a, %d %b %Y %H:%M:%S %z').strftime('%Y-%m-%d')
+                description = html.unescape(match.group(4).strip())
+                duration = match.group(5).strip()
+                
+                episode = {
+                    'title': title,
+                    'link': link,
+                    'date': date,
+                    'description': description,
+                    'duration': duration
+                }
+                episodes.append(episode)
+            except Exception as e:
+                print(f"处理单个播客条目时出错: {str(e)}")
+                continue
+                
+        return episodes
+        
+    except Exception as e:
+        print(f"获取播客列表失败: {str(e)}")
+        return []
 
 # 页面配置
 st.set_page_config(
@@ -230,62 +280,38 @@ with col2:
                             
                             # 显示生成的内容
                             with st.expander("📝 查看生成的内容", expanded=True):
-                                st.write("Debug - Raw podcast_content:", generate_podcast_content)
+                                st.write("Debug - Raw Content:", generate_podcast_content)
                                 st.write("Debug - Type:", type(generate_podcast_content))
                                 
                                 try:
-                                    # 如果已经是字典，直接使用
-                                    if isinstance(generate_podcast_content, dict):
-                                        content_data = generate_podcast_content
-                                    # 如果是字符串，尝试解析 JSON
-                                    elif isinstance(generate_podcast_content, str):
-                                        # 处理包含 "raw" 字段的情况
-                                        if '"raw"' in generate_podcast_content:
-                                            # 提取 raw 字段中的 JSON 字符串
-                                            raw_match = re.search(r'"raw":\s*"(.*?)"(?=\s*[,}])', generate_podcast_content, re.DOTALL)
-                                            if raw_match:
-                                                # 获取匹配的内容并处理转义字符
-                                                json_str = raw_match.group(1).replace('\\n', '').replace('\\"', '"')
-                                                # 移除开头的 ```json 和结尾的 ``` 如果存在
-                                                json_str = re.sub(r'^```json\s*', '', json_str)
-                                                json_str = re.sub(r'\s*```$', '', json_str)
-                                                st.write("Debug - Extracted JSON:", json_str)
-                                                content_data = json.loads(json_str)
-                                            else:
-                                                # 直接尝试解析整个字符串
-                                                cleaned_content = generate_podcast_content.strip()
-                                                st.write("Debug - Cleaned content:", cleaned_content)
-                                                content_data = json.loads(cleaned_content)
+                                    # 处理 CrewOutput 类型
+                                    if hasattr(generate_podcast_content, 'raw'):
+                                        raw_content = generate_podcast_content.raw
+                                        st.write("Debug - CrewOutput Raw Content:", raw_content)
+                                        
+                                        # 如果是 JSON 字符串，尝试解析
+                                        if isinstance(raw_content, str):
+                                            # 移除可能的 JSON 代码块标记
+                                            json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+                                            content_data = json.loads(json_str)
                                         else:
-                                            raise ValueError(f"未知的内容格式: {type(generate_podcast_content)}")
-                                        
-                                        st.write("Debug - Parsed content:", content_data)
-                                        
-                                        # 验证必要字段
-                                        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
-                                        missing_fields = [field for field in required_fields if not content_data.get(field)]
-                                        
-                                        if missing_fields:
-                                            st.warning(f"⚠️ 注意：内容缺少以下字段: {', '.join(missing_fields)}")
-                                            # 尝试修正字段名称
-                                            if 'prompt' in content_data and 'prompt_text' not in content_data:
-                                                content_data['prompt_text'] = content_data['prompt']
-                                        
-                                        # 显示内容
-                                        st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                                        st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
-                                        st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
-                                        
-                                        # 保存解析后的内容到 session_state
-                                        st.session_state.podcast_content = content_data
-                                        
-                                except json.JSONDecodeError as e:
-                                    st.error(f"❌ JSON 解析失败: {str(e)}")
-                                    st.write("Debug - Error location:", e.pos)
-                                    st.write("Debug - Error message:", e.msg)
-                                    st.write("Debug - Problem content:", e.doc)
+                                            content_data = raw_content
+                                    else:
+                                        content_data = generate_podcast_content
+                                    
+                                    st.write("Debug - Parsed Content:", content_data)
+                                    
+                                    # 显示内容
+                                    st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
+                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
+                                    st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
+                                    
+                                    # 保存解析后的内容到 session_state
+                                    st.session_state.podcast_content = content_data
+                                    
                                 except Exception as e:
                                     st.error(f"❌ 内容处理错误: {str(e)}")
+                                    st.write("Debug - Error Details:", str(e))
                         else:
                             st.error("❌ 生成播客内容失败。")
                     except Exception as e:
@@ -304,7 +330,19 @@ if 'podcast_content' in st.session_state:
                     st.write("Debug - Raw Content:", st.session_state.podcast_content)
                     
                     # 处理 podcast_content
-                    if isinstance(st.session_state.podcast_content, str):
+                    if hasattr(st.session_state.podcast_content, 'raw'):
+                        # 处理 CrewOutput 类型
+                        raw_content = st.session_state.podcast_content.raw
+                        st.write("Debug - CrewOutput Raw Content:", raw_content)
+                        
+                        # 如果是 JSON 字符串，尝试解析
+                        if isinstance(raw_content, str):
+                            # 移除可能的 JSON 代码块标记
+                            json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+                            content_data = json.loads(json_str)
+                        else:
+                            content_data = raw_content
+                    elif isinstance(st.session_state.podcast_content, str):
                         content_data = json.loads(st.session_state.podcast_content)
                     elif isinstance(st.session_state.podcast_content, dict):
                         content_data = st.session_state.podcast_content
@@ -318,12 +356,16 @@ if 'podcast_content' in st.session_state:
                         st.error("❌ 播客内容格式错误")
                     else:
                         # 验证必要字段
-                        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
+                        required_fields = ['title', 'description', 'paper_link', 'prompt']
                         missing_fields = [field for field in required_fields if not content_data.get(field)]
                         
                         if missing_fields:
                             st.error(f"❌ 播客内容缺少必要字段: {', '.join(missing_fields)}")
                         else:
+                            # 确保使用正确的字段名
+                            if 'prompt' in content_data and 'prompt_text' not in content_data:
+                                content_data['prompt_text'] = content_data['prompt']
+                            
                             resources = [
                                 {"content": content_data['paper_link'], "type": "website"}
                             ]
@@ -405,7 +447,7 @@ if 'podcast_content' in st.session_state:
                 "processing": "⏳ 正在处理",
                 "completed": "✅ 已完成",
                 "failed": "❌ 失败",
-                "pending": "⌛ 等待中"
+                "pending": "⌛ 待中"
             }
             
             current_status = status.get("status", "unknown")
