@@ -15,6 +15,7 @@ from cloud_storage import CloudStorage
 import os
 import time
 import threading
+from datetime import datetime
 
 # 页面配置
 st.set_page_config(
@@ -215,7 +216,45 @@ if 'podcast_content' in st.session_state:
                                     st.session_state.request_id = request_id
                                     st.session_state.audio_status = {"status": "processing"}
                                     st.success("✨ 音频生成请求已发送！")
-                    
+                                    
+                                    # 启动状态检查
+                                    def check_status():
+                                        check_count = 0
+                                        max_checks = 30  # 最多检查30次
+                                        
+                                        while check_count < max_checks:
+                                            try:
+                                                status_data = client.check_status(request_id)
+                                                if status_data:
+                                                    # 更新状态显示
+                                                    st.session_state.audio_status = {
+                                                        "status": status_data.get("status"),
+                                                        "updated_on": status_data.get("updated_on"),
+                                                        "audio_url": status_data.get("audio_url"),
+                                                        "error_message": status_data.get("error_message")
+                                                    }
+                                                    
+                                                    # 如果有音频URL或错误信息，结束检查
+                                                    if status_data.get("audio_url"):
+                                                        st.session_state.audio_url = status_data.get("audio_url")
+                                                        break
+                                                    elif status_data.get("error_message"):
+                                                        break
+                                                        
+                                            except Exception as e:
+                                                print(f"状态检查出错: {str(e)}")
+                                            
+                                            check_count += 1
+                                            time.sleep(20)  # 每20秒检查一次
+                                        
+                                    # 在后台线程中运行状态检查
+                                    status_thread = threading.Thread(target=check_status)
+                                    status_thread.daemon = True
+                                    status_thread.start()
+                                    
+                                    # 添加状态自动刷新
+                                    st.experimental_rerun()
+                
                 except json.JSONDecodeError as e:
                     st.error(f"❌ 播客内容 JSON 解析失败: {str(e)}")
                     st.write("Debug - JSON Error Content:", st.session_state.podcast_content)
@@ -226,14 +265,33 @@ if 'podcast_content' in st.session_state:
     with audio_col2:
         if 'audio_status' in st.session_state:
             status = st.session_state.audio_status
-            st.write("当前状态:", status.get("status"))
+            
+            # 使用更友好的状态显示
+            status_mapping = {
+                "processing": "⏳ 正在处理",
+                "completed": "✅ 已完成",
+                "failed": "❌ 失败",
+                "pending": "⌛ 等待中"
+            }
+            
+            current_status = status.get("status", "unknown")
+            st.write("当前状态:", status_mapping.get(current_status, current_status))
+            
             if status.get("updated_on"):
                 st.write("更新时间:", status.get("updated_on"))
             if status.get("error_message"):
                 st.error(f"❌ 错误: {status.get('error_message')}")
             if status.get("audio_url"):
                 st.success("✨ 音频生成完成！")
+                st.audio(status.get("audio_url"))  # 直接播放音频
                 st.session_state.audio_url = status.get("audio_url")
+                
+            # 添加进度条
+            if current_status == "processing":
+                progress_bar = st.progress(0)
+                for i in range(100):
+                    time.sleep(0.1)
+                    progress_bar.progress(i + 1)
 
 # 发布区域
 if 'audio_url' in st.session_state:
