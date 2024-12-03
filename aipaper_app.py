@@ -409,7 +409,7 @@ with col2:
                                     
                                     # 显示内容
                                     st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
+                                    st.markdown(f"**���述**: {content_data.get('description', 'N/A')}")
                                     st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
                                     
                                     # 保存解析后的内容到 session_state
@@ -471,7 +471,7 @@ if 'podcast_content' in st.session_state:
                             ]
                             text = content_data['prompt_text']
                             
-                            # ���送请求并获取request_id
+                            # 发送请求并获取request_id
                             request_id = client.send_content(resources, text)
                             
                             if request_id:
@@ -580,6 +580,12 @@ if 'podcast_content' in st.session_state:
             # 创建状态显示容器
             status_container = st.container()
             with status_container:
+                # 显示检查进度信息
+                if "check_count" in status and "max_checks" in status:
+                    st.info(f"检查进度: {status['check_count']}/{status['max_checks']}")
+                    if "check_time" in status:
+                        st.text(f"最后检查时间: {status['check_time']}")
+                
                 # 显示当前状态
                 current_status = status.get("status", "unknown")
                 status_text = status_mapping.get(current_status, status_mapping["unknown"])
@@ -591,13 +597,9 @@ if 'podcast_content' in st.session_state:
                     st.progress(progress)
                     st.text(f"进度: {progress}%")
                 
-                # 显示更新时间
-                if status.get("updated_on"):
-                    st.text(f"最后更新: {status.get('updated_on')}")
-                
                 # 显示错误信息（如果有）
-                if status.get("error_message"):
-                    st.error(f"错误信息: {status.get('error_message')}")
+                if status.get("error"):
+                    st.error(f"错误信息: {status.get('error')}")
                 
                 # 显示音频（如果已生成）
                 if status.get("audio_url"):
@@ -611,7 +613,7 @@ if 'podcast_content' in st.session_state:
                 if hasattr(st.session_state, 'start_time'):
                     current_time = time.time()
                     elapsed_time = current_time - st.session_state.start_time
-                    st.text(f"处理时间: {int(elapsed_time)}秒")
+                    st.text(f"总处理时间: {int(elapsed_time)}秒")
                 
                 # 添加控制按钮
                 control_col1, control_col2 = st.columns(2)
