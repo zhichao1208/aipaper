@@ -409,7 +409,7 @@ with col2:
                                     
                                     # 显示内容
                                     st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                                    st.markdown(f"**���述**: {content_data.get('description', 'N/A')}")
+                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
                                     st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
                                     
                                     # 保存解析后的内容到 session_state
@@ -555,6 +555,9 @@ if 'podcast_content' in st.session_state:
     # 在同一个if语句内处理audio_col2
     with audio_col2:
         if 'audio_status' in st.session_state:
+            status = st.session_state.audio_status
+            current_status = status.get("status", "unknown")
+            
             # 检查队列中是否有新状态
             try:
                 while not st.session_state.status_queue.empty():
@@ -564,9 +567,8 @@ if 'podcast_content' in st.session_state:
                         break
                     # 更新状态
                     st.session_state.audio_status.update(new_status)
-                    
-                    # 立即显示更新后的状态
                     status = st.session_state.audio_status
+                    current_status = status.get("status", "unknown")
                     
                     # 使用更详细的状态显示
                     status_mapping = {
@@ -584,7 +586,6 @@ if 'podcast_content' in st.session_state:
                     status_container = st.empty()
                     with status_container:
                         # 显示当前状态
-                        current_status = status.get("status", "unknown")
                         status_text = status_mapping.get(current_status, status_mapping["unknown"])
                         st.markdown(f"### 当前状态: {status_text}")
                         
