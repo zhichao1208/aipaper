@@ -1,45 +1,46 @@
 import requests
+import json
 
 class NotebookLMClient:
-    def __init__(self, api_token, webhook_url=None):
-        self.api_url = 'https://api.autocontentapi.com/content/create'
-        self.status_url = 'https://api.autocontentapi.com/content/status/'
-        self.headers = {
-            'Authorization': f'Bearer {api_token}',
-            'accept': 'application/json',
-            'Content-Type': 'application/json'
-        }
+    def __init__(self, api_key: str, webhook_url: str):
+        self.api_key = api_key
         self.webhook_url = webhook_url
-
-    def send_content(self, resources, text, output_type="audio"):
-        data = {
-            "resources": resources,
-            "text": text,
-            "outputType": output_type
-        }
-        if self.webhook_url:
-            data["webhook"] = self.webhook_url  # 添加 webhook URL
-
-        response = requests.post(self.api_url, headers=self.headers, json=data)
-        if response.ok:
-            result = response.json()
-            print("Request sent successfully. Request ID:", result.get("request_id"))
-            return result.get("request_id")
-        else:
-            print("Error:", response.text)
-            return None
-
-    def check_status(self, request_id):
-        status_endpoint = f"{self.status_url}/{request_id}"
-        response = requests.get(status_endpoint, headers=self.headers)
-        if response.ok:
-            status_data = response.json()
-            print("Status:", status_data.get("status"))
-            print("Updated On:", status_data.get("updated_on"))
-            print("Error Message:", status_data.get("error_message"))
-            print("Audio URL:", status_data.get("audio_url"))
-            print("Response Text:", status_data.get("response_text"))
-            return status_data
-        else:
-            print("Error checking status:", response.text)
+        self.base_url = "https://api.notebooklm.com/v1"  # 请确认这是正确的API端点
+        
+    def send_content(self, resources: list, text: str) -> str:
+        """
+        发送内容到 NotebookLM API
+        
+        Args:
+            resources: 资源列表
+            text: 提示文本
+            
+        Returns:
+            str: 请求ID
+        """
+        try:
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "resources": resources,
+                "text": text,
+                "webhook_url": self.webhook_url
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/content",
+                headers=headers,
+                json=payload
+            )
+            
+            response.raise_for_status()  # 如果响应状态码不是200，将引发异常
+            
+            data = response.json()
+            return data.get("request_id")
+            
+        except requests.exceptions.RequestException as e:
+            print(f"API请求错误: {str(e)}")
             return None 

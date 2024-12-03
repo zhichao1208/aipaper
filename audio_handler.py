@@ -1,5 +1,5 @@
+from pydub import AudioSegment
 import requests
-import soundfile as sf
 
 class AudioHandler:
     @staticmethod
@@ -15,6 +15,7 @@ class AudioHandler:
 
     @staticmethod
     def convert_wav_to_mp3(wav_path, mp3_path):
-        data, samplerate = sf.read(wav_path)
-        sf.write(mp3_path, data, samplerate, format='MP3')
+        # 使用 pydub 进行转换
+        audio = AudioSegment.from_wav(wav_path)
+        audio.export(mp3_path, format="mp3")
         print(f"Audio file converted from {wav_path} to {mp3_path}") 

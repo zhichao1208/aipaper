@@ -122,7 +122,7 @@ with col1:
                     with st.expander("📄 查看论文列表", expanded=True):
                         st.markdown(paper_result)
                 else:
-                    st.error("❌ 未找到相关论文。")
+                    st.error("❌ 未到相关论文。")
             except Exception as e:
                 st.error(f"❌ 搜索过程中出错: {str(e)}")
 
@@ -166,49 +166,67 @@ if 'podcast_content' in st.session_state:
             with st.spinner("正在生成音频..."):
                 try:
                     content_data = json.loads(str(st.session_state.podcast_content))
+                    st.write("Debug - Content Data:", content_data)  # 调试输出
+                    
                     resources = [
                         {"content": content_data.get('paper_link', ''), "type": "website"}
                     ]
                     text = content_data.get('prompt_text', '')
                     
-                    client = NotebookLMClient(
-                        st.secrets["NotebookLM_API_KEY"],
-                        webhook_url="http://localhost:5000/webhook"
-                    )
+                    st.write("Debug - Resources:", resources)  # 调试输出
+                    st.write("Debug - Text:", text)  # 调试输出
                     
-                    request_id = client.send_content(resources, text)
-                    if request_id:
-                        st.session_state.request_id = request_id
-                        st.session_state.audio_status = {"status": "processing"}
-                        st.success("✨ 音频生成请求已发送！")
+                    # 修改验证逻辑
+                    is_valid = True
+                    if not text.strip():
+                        st.error("❌ 生成的文本内容为空")
+                        is_valid = False
+                    
+                    if not resources[0]["content"].strip():
+                        st.error("❌ 论文链接为空")
+                        is_valid = False
+                    
+                    if is_valid:
+                        client = NotebookLMClient(
+                            st.secrets["NotebookLM_API_KEY"],
+                            webhook_url="http://localhost:5000/webhook"
+                        )
                         
-                        # 启动状态检查
-                        def check_status():
-                            while st.session_state.audio_status["status"] == "processing":
-                                try:
-                                    status_data = client.check_status(request_id)
-                                    if status_data:
-                                        st.session_state.audio_status = {
-                                            "status": status_data.get("status"),
-                                            "updated_on": status_data.get("updated_on"),
-                                            "audio_url": status_data.get("audio_url"),
-                                            "error_message": status_data.get("error_message")
-                                        }
-                                        if status_data.get("audio_url"):
-                                            st.session_state.audio_url = status_data.get("audio_url")
-                                            break
-                                        elif status_data.get("error_message"):
-                                            break
-                                except Exception as e:
-                                    print(f"状态检查出错: {str(e)}")
-                                time.sleep(20)
+                        request_id = client.send_content(resources, text)
+                        st.write("Debug - Request ID:", request_id)  # 调试输出
                         
-                        # 在后台线程中运行状态检查
-                        status_thread = threading.Thread(target=check_status)
-                        status_thread.daemon = True
-                        status_thread.start()
-                    else:
-                        st.error("❌ 发送音频生成请求失败。")
+                        if request_id:
+                            st.session_state.request_id = request_id
+                            st.session_state.audio_status = {"status": "processing"}
+                            st.success("✨ 音频生成请求已发送！")
+                            
+                            # 启动状态检查
+                            def check_status():
+                                while st.session_state.audio_status["status"] == "processing":
+                                    try:
+                                        status_data = client.check_status(request_id)
+                                        if status_data:
+                                            st.session_state.audio_status = {
+                                                "status": status_data.get("status"),
+                                                "updated_on": status_data.get("updated_on"),
+                                                "audio_url": status_data.get("audio_url"),
+                                                "error_message": status_data.get("error_message")
+                                            }
+                                            if status_data.get("audio_url"):
+                                                st.session_state.audio_url = status_data.get("audio_url")
+                                                break
+                                            elif status_data.get("error_message"):
+                                                break
+                                    except Exception as e:
+                                        print(f"状态检查出错: {str(e)}")
+                                    time.sleep(20)
+                            
+                            # 在后台线程中运行状态检查
+                            status_thread = threading.Thread(target=check_status)
+                            status_thread.daemon = True
+                            status_thread.start()
+                        else:
+                            st.error("❌ 发送音频生成请求失败。")
                 except Exception as e:
                     st.error(f"❌ 音频生成过程中出错: {str(e)}")
     
@@ -244,43 +262,57 @@ if 'audio_url' in st.session_state:
                 
                 # 下载音频
                 temp_audio = "temp_audio.wav"
+                st.write("正在下载音频文件...")
                 if cloud_storage.download_audio(st.session_state.audio_url, temp_audio):
-                    # 上传到 Podbean
-                    podbean_response = podbean_client.authorize_file_upload(
-                        "podcast_audio.mp3",
-                        temp_audio
-                    )
+                    st.write("音频文件下载成功，准备上传到 Cloudinary...")
                     
-                    if podbean_response:
-                        upload_success = podbean_client.upload_file_to_presigned_url(
-                            podbean_response['presigned_url'],
+                    # 上传到 Cloudinary
+                    upload_result = cloud_storage.upload_audio(temp_audio)
+                    
+                    if upload_result["success"]:
+                        st.write("音频文件上传到 Cloudinary 成功，准备发布到 Podbean...")
+                        cloudinary_url = upload_result["url"]
+                        
+                        # 上传到 Podbean
+                        podbean_response = podbean_client.authorize_file_upload(
+                            "podcast_audio.mp3",
                             temp_audio
                         )
                         
-                        if upload_success:
-                            # 发布播客
-                            content_data = json.loads(str(st.session_state.podcast_content))
-                            episode_data = podbean_client.publish_episode(
-                                title=content_data.get('title'),
-                                content=content_data.get('description'),
-                                file_key=podbean_response.get('file_key')
+                        if podbean_response:
+                            upload_success = podbean_client.upload_file_to_presigned_url(
+                                podbean_response['presigned_url'],
+                                temp_audio
                             )
                             
-                            if episode_data:
-                                st.success("🎉 播客发布成功！")
-                                st.markdown(f"[点击查看播客]({episode_data.get('episode_url')})")
+                            if upload_success:
+                                # 发布播客
+                                content_data = json.loads(str(st.session_state.podcast_content))
+                                episode_data = podbean_client.publish_episode(
+                                    title=content_data.get('title'),
+                                    content=content_data.get('description'),
+                                    file_key=podbean_response.get('file_key')
+                                )
+                                
+                                if episode_data:
+                                    st.success("🎉 播客发布成功！")
+                                    st.markdown(f"[点击查看播客]({episode_data.get('episode_url')})")
+                                else:
+                                    st.error("❌ 发布播客失败")
                             else:
-                                st.error("❌ 发布播客失败")
+                                st.error("❌ 上传到 Podbean 失败")
                         else:
-                            st.error("❌ 上传到 Podbean 失败")
+                            st.error("❌ 获取 Podbean 上传授权失败")
                     else:
-                        st.error("❌ 获取 Podbean 上传授权失败")
-                    
-                    # 清理临时文件
-                    if os.path.exists(temp_audio):
-                        os.remove(temp_audio)
+                        st.error(f"❌ 上传到 Cloudinary 失败: {upload_result.get('error')}")
                 else:
                     st.error("❌ 下载音频失败")
+                    
+                # 清理临时文件
+                if os.path.exists(temp_audio):
+                    os.remove(temp_audio)
+                    st.write("临时文件已清理")
+                    
             except Exception as e:
                 st.error(f"❌ 发布过程中出错: {str(e)}")
 
