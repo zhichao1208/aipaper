@@ -16,6 +16,7 @@ import os
 import time
 import threading
 from datetime import datetime
+import re
 
 # 页面配置
 st.set_page_config(
@@ -148,10 +149,62 @@ with col2:
                             
                             # 显示生成的内容
                             with st.expander("📝 查看生成的内容", expanded=True):
-                                content_data = json.loads(str(generate_podcast_content))
-                                st.markdown(f"**标题**: {content_data.get('title')}")
-                                st.markdown(f"**描述**: {content_data.get('description')}")
-                                st.markdown(f"**提示文本**: {content_data.get('prompt_text')}")
+                                st.write("Debug - Raw podcast_content:", generate_podcast_content)
+                                st.write("Debug - Type:", type(generate_podcast_content))
+                                
+                                try:
+                                    # 如果已经是字典，直接使用
+                                    if isinstance(generate_podcast_content, dict):
+                                        content_data = generate_podcast_content
+                                    # 如果是字符串，尝试解析 JSON
+                                    elif isinstance(generate_podcast_content, str):
+                                        # 处理包含 "raw" 字段的情况
+                                        if '"raw"' in generate_podcast_content:
+                                            # 提取 raw 字段中的 JSON 字符串
+                                            raw_match = re.search(r'"raw":\s*"(.*?)"(?=\s*[,}])', generate_podcast_content, re.DOTALL)
+                                            if raw_match:
+                                                # 获取匹配的内容并处理转义字符
+                                                json_str = raw_match.group(1).replace('\\n', '').replace('\\"', '"')
+                                                # 移除开头的 ```json 和结尾的 ``` 如果存在
+                                                json_str = re.sub(r'^```json\s*', '', json_str)
+                                                json_str = re.sub(r'\s*```$', '', json_str)
+                                                st.write("Debug - Extracted JSON:", json_str)
+                                                content_data = json.loads(json_str)
+                                            else:
+                                                # 直接尝试解析整个字符串
+                                                cleaned_content = generate_podcast_content.strip()
+                                                st.write("Debug - Cleaned content:", cleaned_content)
+                                                content_data = json.loads(cleaned_content)
+                                        else:
+                                            raise ValueError(f"未知的内容格式: {type(generate_podcast_content)}")
+                                        
+                                        st.write("Debug - Parsed content:", content_data)
+                                        
+                                        # 验证必要字段
+                                        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
+                                        missing_fields = [field for field in required_fields if not content_data.get(field)]
+                                        
+                                        if missing_fields:
+                                            st.warning(f"⚠️ 注意：内容缺少以下字段: {', '.join(missing_fields)}")
+                                            # 尝试修正字段名称
+                                            if 'prompt' in content_data and 'prompt_text' not in content_data:
+                                                content_data['prompt_text'] = content_data['prompt']
+                                        
+                                        # 显示内容
+                                        st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
+                                        st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
+                                        st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
+                                        
+                                        # 保存解析后的内容到 session_state
+                                        st.session_state.podcast_content = content_data
+                                        
+                                except json.JSONDecodeError as e:
+                                    st.error(f"❌ JSON 解析失败: {str(e)}")
+                                    st.write("Debug - Error location:", e.pos)
+                                    st.write("Debug - Error message:", e.msg)
+                                    st.write("Debug - Problem content:", e.doc)
+                                except Exception as e:
+                                    st.error(f"❌ 内容处理错误: {str(e)}")
                         else:
                             st.error("❌ 生成播客内容失败。")
                     except Exception as e:
