@@ -19,6 +19,7 @@ from datetime import datetime
 import re
 import html
 from queue import Queue
+from typing import Optional, Dict, Any
 
 # 在导入部分之后，页面配置之前添加
 def parse_podbean_feed(feed_url: str) -> list:
@@ -68,6 +69,102 @@ def parse_podbean_feed(feed_url: str) -> list:
     except Exception as e:
         print(f"获取播客列表失败: {str(e)}")
         return []
+
+# 添加内容处理函数
+def normalize_podcast_content(content: dict) -> Optional[Dict[str, Any]]:
+    """
+    规范化播客内容，确保所有必需字段存在且格式正确
+    
+    Args:
+        content: 原始内容字典
+        
+    Returns:
+        Optional[Dict[str, Any]]: 处理后的内容，如果无效则返回None
+    """
+    try:
+        # 创建新字典以避免修改原始数据
+        normalized = content.copy()
+        
+        # 处理prompt/prompt_text字段
+        if 'prompt' in normalized and 'prompt_text' not in normalized:
+            normalized['prompt_text'] = normalized.pop('prompt')
+        
+        # 验证必需字段
+        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
+        missing_fields = [field for field in required_fields if not normalized.get(field)]
+        
+        if missing_fields:
+            print(f"缺少必需字段: {', '.join(missing_fields)}")
+            return None
+            
+        return normalized
+    except Exception as e:
+        print(f"规范化内容时出错: {str(e)}")
+        return None
+
+def generate_content_with_chatgpt(paper_link: str) -> Optional[Dict[str, Any]]:
+    """
+    使用ChatGPT直接生��播客内容
+    
+    Args:
+        paper_link: 论文链接
+        
+    Returns:
+        Optional[Dict[str, Any]]: 生成的内容，如果失败返回None
+    """
+    try:
+        system_prompt = """你是一个专业的学术播客内容生成助手。请生成一个包含以下字段的JSON格式内容：
+        {
+            "title": "播客标题",
+            "description": "播客描述",
+            "paper_link": "论文链接",
+            "prompt_text": "用于生成音频的详细内容"
+        }
+        
+        注意：
+        1. 必须使用prompt_text作为字段名（不是prompt）
+        2. prompt_text应包含完整的播客脚本
+        3. 所有字段都必须存在且不能为空
+        4. 内容必须是有效的JSON格式"""
+        
+        user_prompt = f"""请根据以下论文链接生成播客内容：
+        
+        论文链接: {paper_link}
+        
+        要求：
+        1. 生成的内容必须是完整的JSON格式
+        2. 必须包含所有必需字段（title, description, paper_link, prompt_text）
+        3. prompt_text字段应该包含完整的播客脚本，包括论文的背景、主要发现和影响
+        4. 内容应该专业、准确且易于理解"""
+        
+        response = openai.ChatCompletion.create(
+            model=os.getenv("OPENAI_MODEL_NAME", "gpt-3.5-turbo"),
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.7
+        )
+        
+        # 解析JSON响应
+        content = json.loads(response.choices[0].message.content)
+        
+        # 规范化内容
+        normalized_content = normalize_podcast_content(content)
+        if not normalized_content:
+            print("内容规范化失败")
+            return None
+            
+        # 确保paper_link字段正确
+        normalized_content['paper_link'] = paper_link
+        
+        return normalized_content
+    except json.JSONDecodeError as e:
+        print(f"JSON解析错误: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"生成内容时出错: {str(e)}")
+        return None
 
 # 页面配置
 st.set_page_config(
@@ -119,6 +216,8 @@ if 'processing_complete' not in st.session_state:
     st.session_state.processing_complete = False
 if 'should_stop_check' not in st.session_state:
     st.session_state.should_stop_check = False
+if 'status_queue' not in st.session_state:
+    st.session_state.status_queue = Queue()
 
 # 侧边栏配置
 with st.sidebar:
@@ -262,7 +361,7 @@ with col1:
                             with st.expander("📄 查看论文列表", expanded=True):
                                 st.markdown(paper_result)
                         else:
-                            st.error("❌ 未找到相关论文。")
+                            st.error("❌ 未找到相���论文。")
                     except Exception as e:
                         st.error(f"❌ 搜索过程中出错: {str(e)}")
         
@@ -274,54 +373,25 @@ with col1:
             )
             
             if st.button("📝 直接生成内容", key="generate_direct_button"):
-                with st.spinner("正在生成播客内容..."):
+                with st.spinner("正在使用ChatGPT生成内容..."):
                     try:
-                        # 使用论文链接生成内容
-                        podcast_inputs = {
-                            "papers_list": json.dumps({
-                                "title": "直接输入的论文",
-                                "link": paper_link,
-                                "content": "通过链接直接生成"
-                            })
-                        }
-                        generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
-                        generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
+                        # 直接使用ChatGPT生成内容
+                        content = generate_content_with_chatgpt(paper_link)
                         
-                        if generate_podcast_content:
-                            st.session_state.podcast_content = generate_podcast_content
-                            st.success("✨ 播客内容生成成功！")
+                        if content:
+                            st.session_state.podcast_content = content
+                            st.success("✨ 内容生成成功！")
                             
                             # 显示生成的内容
                             with st.expander("📝 查看生成的内容", expanded=True):
-                                try:
-                                    # 处理 CrewOutput 类型
-                                    if hasattr(generate_podcast_content, 'raw'):
-                                        raw_content = generate_podcast_content.raw
-                                        
-                                        # 如果是 JSON 字符串，尝试解析
-                                        if isinstance(raw_content, str):
-                                            # 移除可能的 JSON 代码块标记
-                                            json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
-                                            content_data = json.loads(json_str)
-                                        else:
-                                            content_data = raw_content
-                                    else:
-                                        content_data = generate_podcast_content
-                                    
-                                    # 显示内容
-                                    st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
-                                    st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
-                                    
-                                    # 保存解析后的内容到 session_state
-                                    st.session_state.podcast_content = content_data
-                                    
-                                except Exception as e:
-                                    st.error(f"❌ 内容处理错误: {str(e)}")
+                                st.markdown(f"**标题**: {content['title']}")
+                                st.markdown(f"**描述**: {content['description']}")
+                                st.markdown(f"**提示文本**: {content['prompt_text']}")
                         else:
-                            st.error("❌ 生成播客内容失败。")
+                            st.error("❌ 生成内容失败，请检查论文链接是否正确。")
                     except Exception as e:
                         st.error(f"❌ 生成过程中出错: {str(e)}")
+                        st.write("错误详情:", str(e))  # 添加详细错误信息
 
 with col2:
     # 处理状态和进度区
@@ -355,7 +425,7 @@ with col2:
                                         
                                         # 如果是 JSON 字符串，尝试解析
                                         if isinstance(raw_content, str):
-                                            # 移除可能的 JSON 代码块标记
+                                            # 除可能的 JSON 代码块标记
                                             json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
                                             content_data = json.loads(json_str)
                                         else:
@@ -388,7 +458,7 @@ if 'podcast_content' in st.session_state:
     
     with audio_col1:
         if st.button("🎙️ 生成音频"):
-            with st.spinner("正在生成音频..."):
+            with st.spinner("正在发送音频生成请求..."):
                 try:
                     # 调试输出原始内容
                     st.write("Debug - Raw Content:", st.session_state.podcast_content)
@@ -413,191 +483,170 @@ if 'podcast_content' in st.session_state:
                     else:
                         raise ValueError(f"未知的内容格式: {type(st.session_state.podcast_content)}")
                     
-                    st.write("Debug - Parsed Content Data:", content_data)
-                    
-                    # 验证 content_data 格式
-                    if not isinstance(content_data, dict):
-                        st.error("❌ 播客内容格式错误")
-                    else:
-                        # 验证必要字段
-                        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
-                        missing_fields = [field for field in required_fields if not content_data.get(field)]
+                    # 验证 API 密钥
+                    if not st.secrets.get("NotebookLM_API_KEY"):
+                        st.error("❌ NotebookLM API 密钥未设置")
+                        return
                         
-                        if missing_fields:
-                            st.error(f"❌ 播客内容缺少必要字段: {', '.join(missing_fields)}")
-                        else:
-                            # 确保使用正确的字段名
-                            if 'prompt' in content_data and 'prompt_text' not in content_data:
-                                content_data['prompt_text'] = content_data['prompt']
-                            
-                            resources = [
-                                {"content": content_data['paper_link'], "type": "website"}
-                            ]
-                            text = content_data['prompt_text']
-                            
-                            st.write("Debug - Resources:", resources)
-                            st.write("Debug - Text:", text)
-                            
-                            # 验证 API 密钥
-                            if not st.secrets.get("NotebookLM_API_KEY"):
-                                st.error("❌ NotebookLM API 密钥未设置")
-                            else:
-                                client = NotebookLMClient(
-                                    st.secrets["NotebookLM_API_KEY"],
-                                    webhook_url="http://localhost:5000/webhook"
-                                )
-                                
-                                request_id = client.send_content(resources, text)
-                                st.write("Debug - Request ID:", request_id)
-                                
-                                if not request_id:
-                                    st.error("❌ 发送音频生成请求失败。")
-                                else:
-                                    # 重置停止标志
-                                    st.session_state.should_stop_check = False
-                                    
-                                    # 初始化状态
-                                    st.session_state.request_id = request_id
-                                    st.session_state.audio_status = {"status": 0}
-                                    st.session_state.start_time = time.time()
-                                    
-                                    # 修改状态检查部分
-                                    def check_status(request_id: str, client: NotebookLMClient, queue: Queue):
-                                        """
-                                        检查音频生成状态的后台任务
-                                        
-                                        Args:
-                                            request_id: 请求ID
-                                            client: NotebookLM客户端
-                                            queue: 状态更新队列
-                                        """
-                                        check_count = 0
-                                        max_checks = 30  # 最多检查30次
-                                        
-                                        while check_count < max_checks and not st.session_state.should_stop_check:
-                                            try:
-                                                status_data = client.check_status(request_id)
-                                                if status_data:
-                                                    # 将状态放入队列
-                                                    queue.put(status_data)
-                                                    
-                                                    # 如果处理完成或出错，结束检查
-                                                    if status_data.get("audio_url") or status_data.get("error_message"):
-                                                        break
-                                                        
-                                            except Exception as e:
-                                                print(f"状态检查出错: {str(e)}")
-                                            
-                                            check_count += 1
-                                            time.sleep(20)  # 每20秒检查一次
-                                        
-                                        # 标记检查结束
-                                        queue.put(None)
-                                    
-                                    # 在后台线程中运行状态检查
-                                    status_thread = threading.Thread(
-                                        target=check_status,
-                                        args=(request_id, client, status_queue)
-                                    )
-                                    status_thread.daemon = True
-                                    status_thread.start()
-                                    
-                                    # 使用定时刷新而不是 rerun
-                                    time.sleep(2)  # 等待初始状态更新
-                                    st.rerun()
-                
-                except json.JSONDecodeError as e:
-                    st.error(f"❌ 播客内容 JSON 解析失败: {str(e)}")
-                    st.write("Debug - JSON Error Content:", st.session_state.podcast_content)
-                except Exception as e:
-                    st.error(f"❌ 音频生成过程中出错: {str(e)}")
-                    st.write("Debug - Error Details:", str(e))
-    
-    with audio_col2:
-        if 'audio_status' in st.session_state:
-            # 检查队列中是否有新状态
-            try:
-                while not status_queue.empty():
-                    new_status = status_queue.get_nowait()
-                    if new_status is None:
-                        # 检查结束
-                        break
-                    # 更新状态
-                    st.session_state.audio_status.update(new_status)
-            except Exception as e:
-                print(f"更新状态出错: {str(e)}")
-            
-            status = st.session_state.audio_status
-            
-            # 使用更详细的状态显示
-            status_mapping = {
-                0: "⌛ 排队中...",
-                30: "🔄 正在初始化...",
-                60: "🎯 正在处理内容...",
-                80: "🎵 正在生成音频...",
-                100: "✅ 已完成",
-                "failed": "❌ 失败",
-                "error": "⚠️ 出错",
-                "unknown": "❓ 未知状态"
-            }
-            
-            # 创建状态显示容器
-            status_container = st.container()
-            with status_container:
-                # 显示当前状态
-                current_status = status.get("status", "unknown")
-                status_text = status_mapping.get(current_status, status_mapping["unknown"])
-                st.markdown(f"### 当前状态: {status_text}")
-                
-                # 显示进度条
-                if isinstance(current_status, (int, float)) and current_status < 100:
-                    progress = int(current_status)
-                    st.progress(progress)
-                    st.text(f"进度: {progress}%")
-                
-                # 显示更新时间
-                if status.get("updated_on"):
-                    st.text(f"最后更新: {status.get('updated_on')}")
-                
-                # 显示错误信息（如果有）
-                if status.get("error_message"):
-                    st.error(f"错误信息: {status.get('error_message')}")
-                
-                # 显示音频（如果已生成）
-                if status.get("audio_url"):
-                    st.success("✨ 音频生成完成！")
-                    st.audio(status.get("audio_url"))
-                    st.session_state.audio_url = status.get("audio_url")
-                    # 添加下载按钮
-                    st.markdown(f"[📥 下载音频]({status.get('audio_url')})")
-                
-                # 显示处理时间
-                if hasattr(st.session_state, 'start_time'):
-                    current_time = time.time()
-                    elapsed_time = current_time - st.session_state.start_time
-                    st.text(f"处理时间: {int(elapsed_time)}秒")
-                
-                # 添加刷新按钮
-                control_col1, control_col2 = st.columns(2)
-                
-                with control_col1:
-                    if st.button("🔄 刷新状态"):
-                        st.rerun()
-                
-                with control_col2:
-                    if st.button("⏹️ 停止检查"):
-                        st.session_state.should_stop_check = True
-                        st.success("状态检查已停止")
-                        time.sleep(1)
-                        st.rerun()
-                
-                # 如果还在处理中且未停止，自动刷新
-                current_status = status.get("status", 0)
-                if (isinstance(current_status, (int, float)) and 
-                    current_status < 100 and 
-                    not st.session_state.should_stop_check):
-                    time.sleep(10)  # 每10秒刷新一次
+                    client = NotebookLMClient(
+                        st.secrets["NotebookLM_API_KEY"],
+                        webhook_url="http://localhost:5000/webhook"
+                    )
+                    
+                    # 准备请求数据
+                    resources = [
+                        {"content": content_data['paper_link'], "type": "website"}
+                    ]
+                    text = content_data['prompt_text']
+                    
+                    # 发送请求并获取request_id
+                    request_id = client.send_content(resources, text)
+                    
+                    if not request_id:
+                        st.error("❌ 发送音频生成请求失败")
+                        return
+                        
+                    # 发送成功，更新状态
+                    st.success("✅ 音频生成请求已发送！")
+                    st.info("⌛ 正在等待处理...")
+                    
+                    # 重置停止标志
+                    st.session_state.should_stop_check = False
+                    
+                    # 初始化状态
+                    st.session_state.request_id = request_id
+                    st.session_state.audio_status = {"status": 0}
+                    st.session_state.start_time = time.time()
+                    
+                    # 启动状态检查线程
+                    status_thread = threading.Thread(
+                        target=check_status,
+                        args=(request_id, client, st.session_state.status_queue)
+                    )
+                    status_thread.daemon = True
+                    status_thread.start()
+                    
+                    # 等待初始状态更新
+                    time.sleep(2)
                     st.rerun()
+                    
+                except json.JSONDecodeError as e:
+                    st.error(f"❌ JSON解析失败: {str(e)}")
+                except Exception as e:
+                    st.error(f"❌ 发送请求时出错: {str(e)}")
+                    st.write("错误详情:", str(e))
+
+# 添加状态检查函数
+def check_status(request_id: str, client: NotebookLMClient, status_queue: Queue):
+    """检查音频生成状态的后台任务"""
+    check_count = 0
+    max_checks = 30  # 最多检查30次
+    
+    while check_count < max_checks and not st.session_state.should_stop_check:
+        try:
+            status_data = client.check_status(request_id)
+            if status_data:
+                # 将状态放入队列
+                status_queue.put(status_data)
+                
+                # 如果处理完成或出错，结束检查
+                if status_data.get("audio_url") or status_data.get("error_message"):
+                    break
+                    
+        except Exception as e:
+            print(f"状态检查出错: {str(e)}")
+        
+        check_count += 1
+        time.sleep(20)  # 每20秒检查一次
+    
+    # 标记检查结束
+    status_queue.put(None)
+
+# 添加状态显示部分
+with audio_col2:
+    if 'audio_status' in st.session_state:
+        # 检查队列中是否有新状态
+        try:
+            while not st.session_state.status_queue.empty():
+                new_status = st.session_state.status_queue.get_nowait()
+                if new_status is None:
+                    # 检查结束
+                    break
+                # 更新状态
+                st.session_state.audio_status.update(new_status)
+        except Exception as e:
+            print(f"更新状态出错: {str(e)}")
+        
+        status = st.session_state.audio_status
+        
+        # 使用更详细的状态显示
+        status_mapping = {
+            0: "⌛ 排队中...",
+            30: "🔄 正在初始化...",
+            60: "🎯 正在处理内容...",
+            80: "🎵 正在生成音频...",
+            100: "✅ 已完成",
+            "failed": "❌ 失败",
+            "error": "⚠️ 出错",
+            "unknown": "❓ 未知状态"
+        }
+        
+        # 创建状态显示容器
+        status_container = st.container()
+        with status_container:
+            # 显示当前状态
+            current_status = status.get("status", "unknown")
+            status_text = status_mapping.get(current_status, status_mapping["unknown"])
+            st.markdown(f"### 当前状态: {status_text}")
+            
+            # 显示进度条
+            if isinstance(current_status, (int, float)) and current_status < 100:
+                progress = int(current_status)
+                st.progress(progress)
+                st.text(f"进度: {progress}%")
+            
+            # 显示更新时间
+            if status.get("updated_on"):
+                st.text(f"最后更新: {status.get('updated_on')}")
+            
+            # 显示错误信息（如果有）
+            if status.get("error_message"):
+                st.error(f"错误信息: {status.get('error_message')}")
+            
+            # 显示音频（如果已生成）
+            if status.get("audio_url"):
+                st.success("✨ 音频生成完成！")
+                st.audio(status.get("audio_url"))
+                st.session_state.audio_url = status.get("audio_url")
+                # 添加下载按钮
+                st.markdown(f"[📥 下载音频]({status.get('audio_url')})")
+            
+            # 显示处理时间
+            if hasattr(st.session_state, 'start_time'):
+                current_time = time.time()
+                elapsed_time = current_time - st.session_state.start_time
+                st.text(f"处理时间: {int(elapsed_time)}秒")
+            
+            # 添加控制按钮
+            control_col1, control_col2 = st.columns(2)
+            
+            with control_col1:
+                if st.button("🔄 刷新状态", key="refresh_status"):
+                    st.rerun()
+            
+            with control_col2:
+                if st.button("⏹️ 停止检查", key="stop_check"):
+                    st.session_state.should_stop_check = True
+                    st.success("状态检查已停止")
+                    time.sleep(1)
+                    st.rerun()
+            
+            # 如果还在处理中且未停止，自动刷新
+            if (isinstance(current_status, (int, float)) and 
+                current_status < 100 and 
+                not st.session_state.should_stop_check):
+                time.sleep(10)  # 每10秒刷新一次
+                st.rerun()
 
 # 发布区域
 if 'audio_url' in st.session_state:
