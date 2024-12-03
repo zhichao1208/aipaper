@@ -22,6 +22,17 @@ from queue import Queue
 from typing import Optional, Dict, Any
 from podcast_schema import PodcastContent, normalize_content
 
+# 状态映射字典
+status_mapping = {
+    "unknown": "未知状态",
+    0: "等待处理",
+    10: "正在初始化",
+    20: "正在处理",
+    30: "正在生成音频",
+    60: "处理中",
+    80: "即将完成"
+}
+
 def parse_podbean_feed(feed_url: str) -> list:
     """解析 Podbean Feed 获取播客列表"""
     try:
