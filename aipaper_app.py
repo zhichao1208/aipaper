@@ -86,7 +86,7 @@ if st.button("生成播客内容"):
 # 步骤 4: 发送内容到 NLM
 if 'podcast_content' in st.session_state and st.button("发送内容到 NLM"):
     resources = [
-        {"content": st.session_state.podcast_content['link'], "type": "website"},
+        {"content": st.session_state.podcast_content['paper_link'], "type": "website"},
     ]
     text = st.session_state.podcast_content['prompt']
     request_id = client.send_content(resources, text)
