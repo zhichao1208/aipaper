@@ -122,7 +122,7 @@ with col1:
                     with st.expander("📄 查看论文列表", expanded=True):
                         st.markdown(paper_result)
                 else:
-                    st.error("❌ 未到相关论文。")
+                    st.error("❌ 未��相关论文。")
             except Exception as e:
                 st.error(f"❌ 搜索过程中出错: {str(e)}")
 
@@ -171,46 +171,39 @@ if 'podcast_content' in st.session_state:
                     # 验证 content_data 格式
                     if not isinstance(content_data, dict):
                         st.error("❌ 播客内容格式错误")
-                        return
+                    else:
+                        resources = [
+                            {"content": content_data.get('paper_link', ''), "type": "website"}
+                        ]
+                        text = content_data.get('prompt_text', '')
                         
-                    resources = [
-                        {"content": content_data.get('paper_link', ''), "type": "website"}
-                    ]
-                    text = content_data.get('prompt_text', '')
-                    
-                    st.write("Debug - Resources:", resources)
-                    st.write("Debug - Text:", text)
-                    
-                    # 验证必要字段
-                    if not all([
-                        content_data.get('title'),
-                        content_data.get('description'),
-                        content_data.get('paper_link'),
-                        content_data.get('prompt_text')
-                    ]):
-                        st.error("❌ 播客内容缺少必要字段")
-                        return
-                    
-                    # 验证 API 密钥
-                    if not st.secrets.get("NotebookLM_API_KEY"):
-                        st.error("❌ NotebookLM API 密钥未设置")
-                        return
-                        
-                    client = NotebookLMClient(
-                        st.secrets["NotebookLM_API_KEY"],
-                        webhook_url="http://localhost:5000/webhook"
-                    )
-                    
-                    request_id = client.send_content(resources, text)
-                    st.write("Debug - Request ID:", request_id)
-                    
-                    if not request_id:
-                        st.error("❌ 发送音频生成请求失败。")
-                        return
-                        
-                    st.session_state.request_id = request_id
-                    st.session_state.audio_status = {"status": "processing"}
-                    st.success("✨ 音频生成请求已发送！")
+                        # 验证必要字段
+                        if not all([
+                            content_data.get('title'),
+                            content_data.get('description'),
+                            content_data.get('paper_link'),
+                            content_data.get('prompt_text')
+                        ]):
+                            st.error("❌ 播客内容缺少必要字段")
+                        else:
+                            # 验证 API 密钥
+                            if not st.secrets.get("NotebookLM_API_KEY"):
+                                st.error("❌ NotebookLM API 密钥未设置")
+                            else:
+                                client = NotebookLMClient(
+                                    st.secrets["NotebookLM_API_KEY"],
+                                    webhook_url="http://localhost:5000/webhook"
+                                )
+                                
+                                request_id = client.send_content(resources, text)
+                                st.write("Debug - Request ID:", request_id)
+                                
+                                if not request_id:
+                                    st.error("❌ 发送音频生成请求失败。")
+                                else:
+                                    st.session_state.request_id = request_id
+                                    st.session_state.audio_status = {"status": "processing"}
+                                    st.success("✨ 音频生成请求已发送！")
                     
                 except json.JSONDecodeError:
                     st.error("❌ 播客内容 JSON 解析失败")
