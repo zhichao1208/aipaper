@@ -438,19 +438,11 @@ if 'podcast_content' in st.session_state:
         if st.button("🎙️ 生成音频"):
             with st.spinner("正在发送音频生成请求..."):
                 try:
-                    # 调试输出原始内容
-                    st.write("Debug - Raw Content:", st.session_state.podcast_content)
-                    
                     # 处理 podcast_content
                     content_data = None
                     if hasattr(st.session_state.podcast_content, 'raw'):
-                        # 处理 CrewOutput 类型
                         raw_content = st.session_state.podcast_content.raw
-                        st.write("Debug - CrewOutput Raw Content:", raw_content)
-                        
-                        # 如果是 JSON 字符串，尝试解析
                         if isinstance(raw_content, str):
-                            # 移除可能的 JSON 代码块标记
                             json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
                             content_data = json.loads(json_str)
                         else:
@@ -459,122 +451,70 @@ if 'podcast_content' in st.session_state:
                         content_data = json.loads(st.session_state.podcast_content)
                     elif isinstance(st.session_state.podcast_content, dict):
                         content_data = st.session_state.podcast_content
-                    else:
-                        st.error(f"❌ 未知的内容格式: {type(st.session_state.podcast_content)}")
                     
-                    # 只有当content_data有效时继续处理
                     if content_data is not None:
-                        # 验证 API 密钥
                         if st.secrets.get("NotebookLM_API_KEY"):
                             client = NotebookLMClient(
                                 st.secrets["NotebookLM_API_KEY"],
                                 webhook_url="http://localhost:5000/webhook"
                             )
                             
-                            # 准备请求数据
                             resources = [
                                 {"content": content_data['paper_link'], "type": "website"}
                             ]
                             text = content_data['prompt_text']
                             
-                            # 发送请求并获取request_id
                             request_id = client.send_content(resources, text)
                             
                             if request_id:
-                                # 发送成功，更新状态
                                 st.success("✅ 音频生成请求已发送！")
-                                st.info("⌛ 正在等待处理...")
                                 
-                                # 重置停止标志
+                                # 重置状态
                                 st.session_state.should_stop_check = False
-                                
-                                # 初始化状态
                                 st.session_state.request_id = request_id
-                                st.session_state.audio_status = {"status": 0}
-                                st.session_state.start_time = time.time()
+                                st.session_state.audio_status = {
+                                    "status": 0,
+                                    "check_count": 0,
+                                    "start_time": time.time(),
+                                    "last_check_time": None,
+                                    "last_status": None
+                                }
                                 
-                                # 定义状态检查函数
-                                def check_status_thread():
-                                    """检查音频生成状态的后台任务"""
-                                    check_count = 0
-                                    max_checks = 180  # 最多检查3分钟
-                                    last_status = None
-                                    
-                                    while check_count < max_checks and not st.session_state.should_stop_check:
-                                        try:
-                                            # 每次检查前更新状态
-                                            check_count += 1
-                                            current_time = time.time()
-                                            elapsed_time = int(current_time - st.session_state.start_time)
-                                            
-                                            # 检查音频状态
-                                            status_data = client.check_status(request_id)
-                                            
-                                            # 准备基础状态信息
-                                            base_status = {
-                                                'check_count': check_count,
-                                                'elapsed_time': elapsed_time,
-                                                'check_time': time.strftime("%H:%M:%S"),
-                                                'last_status': last_status,
-                                                'status': status_data.get('status', 0) if status_data else 0
-                                            }
-                                            
-                                            if status_data:
-                                                # 记录最后一次状态
-                                                last_status = f"状态码: {status_data.get('status', 0)}, 消息: {status_data.get('message', '无')}"
-                                                # 合并状态信息
-                                                status_data.update(base_status)
-                                                st.session_state.status_queue.put(status_data)
-                                            else:
-                                                # 即使没有新状态也发送基础信息
-                                                st.session_state.status_queue.put(base_status)
-                                                
-                                            # 如果处理完成或出错，结束检查
-                                            if status_data and (status_data.get("audio_url") or status_data.get("error_message")):
-                                                break
-                                                    
-                                        except Exception as e:
-                                            error_status = {
-                                                **base_status,
-                                                'error_message': f"状态检查出错: {str(e)}"
-                                            }
-                                            st.session_state.status_queue.put(error_status)
-                                            print(f"状态检查出错: {str(e)}")
-                                        
-                                        time.sleep(5)  # 每5秒检查一次
-                                    
-                                    # 标记检查结束
-                                    st.session_state.status_queue.put(None)
+                                # 清空状态队列
+                                while not st.session_state.status_queue.empty():
+                                    st.session_state.status_queue.get()
                                 
-                                # 启动状态检查线程
-                                status_thread = threading.Thread(target=check_status_thread)
-                                status_thread.daemon = True
-                                status_thread.start()
-                                
-                                # 等待初始状态更新
-                                time.sleep(2)
                                 st.rerun()
                             else:
                                 st.error("❌ 发送音频生成请求失败")
                         else:
                             st.error("❌ NotebookLM API 密钥未设置")
-                    
-                except json.JSONDecodeError as e:
-                    st.error(f"❌ JSON解析失败: {str(e)}")
+                    else:
+                        st.error("❌ 无法解析播客内容")
+                        
                 except Exception as e:
                     st.error(f"❌ 发送请求时出错: {str(e)}")
-                    st.write("错误详情:", str(e))
     
-    # 在同一个if语句内处理audio_col2
     with audio_col2:
         if 'audio_status' in st.session_state:
+            # 创建状态显示容器
+            status_container = st.empty()
+            
+            # 检查状态队列是否有更新
+            try:
+                while not st.session_state.status_queue.empty():
+                    new_status = st.session_state.status_queue.get_nowait()
+                    if new_status is not None:
+                        st.session_state.audio_status.update(new_status)
+            except Exception as e:
+                st.error(f"状态更新出错: {str(e)}")
+            
+            # 显示当前状态
             status = st.session_state.audio_status
             current_status = status.get("status", "unknown")
             
-            # 创建状态显示容器
-            status_container = st.empty()
             with status_container:
-                # 显示当前状态
+                # 显示状态文本
                 status_text = status_mapping.get(current_status, status_mapping["unknown"])
                 st.markdown(f"### 当前状态: {status_text}")
                 
@@ -582,41 +522,40 @@ if 'podcast_content' in st.session_state:
                 col1, col2 = st.columns(2)
                 with col1:
                     st.text(f"检查次数: {status.get('check_count', 0)}")
-                    st.text(f"最后检查时间: {status.get('check_time', '未知')}")
-                with col2:
-                    elapsed_time = status.get('elapsed_time', 0)
-                    minutes = elapsed_time // 60
-                    seconds = elapsed_time % 60
-                    st.text(f"总处理时间: {minutes}分{seconds}秒")
+                    check_time = status.get('check_time', '未知')
+                    st.text(f"最后检查: {check_time}")
                 
-                # 显示最后一次状态信息
-                if status.get('last_status'):
-                    st.info(status.get('last_status'))
+                with col2:
+                    if 'start_time' in status:
+                        elapsed_time = int(time.time() - status['start_time'])
+                        minutes = elapsed_time // 60
+                        seconds = elapsed_time % 60
+                        st.text(f"处理时间: {minutes}分{seconds}秒")
                 
                 # 显示进度条
-                if isinstance(current_status, (int, float)) and current_status < 100:
-                    progress = int(current_status)
+                if isinstance(current_status, (int, float)):
+                    progress = min(int(current_status), 100)
                     st.progress(progress)
                     st.text(f"进度: {progress}%")
                 
-                # 显示错误信息（如果有）
+                # 显示错误信息
                 if status.get("error_message"):
-                    st.error(f"错误信息: {status.get('error_message')}")
+                    st.error(f"错误: {status['error_message']}")
                 
-                # 显示音频（如果已生成）
+                # 显示音频
                 if status.get("audio_url"):
                     st.success("✨ 音频生成完成！")
-                    st.audio(status.get("audio_url"))
+                    st.audio(status["audio_url"])
+                    st.session_state.audio_url = status["audio_url"]
+                    st.markdown(f"[📥 下载音频]({status['audio_url']})")
                     
-                    # 更新播客内容的音频链接
-                    if 'podcast_content' in st.session_state:
-                        content = st.session_state.podcast_content
-                        content['audio_link'] = status.get("audio_url")
-                        # 规范化内容格式
-                        st.session_state.podcast_content = normalize_content(content)
-                    
-                    # 添加下载按钮
-                    st.markdown(f"[📥 下载音频]({status.get('audio_url')})")
+                    # 停止状态检查
+                    st.session_state.should_stop_check = True
+                
+                # 自动刷新
+                if not st.session_state.should_stop_check:
+                    time.sleep(1)
+                    st.rerun()
 
 # 发布区域
 if 'audio_url' in st.session_state:
