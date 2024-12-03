@@ -9,7 +9,7 @@ from pydantic import BaseModel
 class PodcastContent(BaseModel):
     title: str
     description: str
-    prompt: str
+    prompt_text: str
     audio_link:str
     paper_link:str
 
