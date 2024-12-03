@@ -146,21 +146,14 @@ class NotebookLMClient:
                 "Content-Type": "application/json"
             }
             
-            # 根据文档更新正确的 URL
-            status_url = f"{self.base_url}/content/status"
-            
-            # 添加请求参数
-            params = {
-                "request_id": request_id
-            }
+            # 根据文档更新正确的 URL 格式
+            status_url = f"{self.base_url}/content/status/{request_id}"
             
             self.logger.info(f"检查状态 URL: {status_url}")
-            self.logger.info(f"请求参数: {params}")
             
             response = requests.get(
                 status_url,
                 headers=headers,
-                params=params,
                 timeout=30
             )
             
