@@ -87,6 +87,87 @@ with st.sidebar:
         else:
             st.error(f"{api} ✗")
 
+# 在主界面标题之后添加播客列表展示区域
+st.markdown("""
+    <style>
+    .podcast-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1rem;
+        padding: 1rem 0;
+    }
+    .podcast-card {
+        background: white;
+        border-radius: 10px;
+        padding: 1rem;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        transition: transform 0.2s;
+    }
+    .podcast-card:hover {
+        transform: translateY(-5px);
+    }
+    .podcast-title {
+        color: #1E88E5;
+        font-size: 1.1rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    .podcast-meta {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 0.5rem;
+    }
+    .podcast-description {
+        color: #333;
+        font-size: 0.95rem;
+        margin-bottom: 0.5rem;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .podcast-link {
+        color: #FF4B4B;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .podcast-link:hover {
+        text-decoration: underline;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# 添加播客列表标题和展开选项
+with st.expander("🎧 最新播客列表", expanded=True):
+    feed_url = "https://feed.podbean.com/zhichao1208/feed.xml"
+    episodes = parse_podbean_feed(feed_url)
+    
+    if episodes:
+        st.markdown('<div class="podcast-grid">', unsafe_allow_html=True)
+        
+        for episode in episodes:
+            st.markdown(f"""
+                <div class="podcast-card">
+                    <div class="podcast-title">{episode['title']}</div>
+                    <div class="podcast-meta">
+                        📅 {episode['date']} | ⏱️ {episode['duration']}
+                    </div>
+                    <div class="podcast-description">
+                        {episode['description']}
+                    </div>
+                    <a href="{episode['link']}" target="_blank" class="podcast-link">
+                        🎧 收听播客
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+    else:
+        st.info("暂无播客内容")
+
+# 添加分隔线
+st.markdown("---")
+
 # 主界面
 st.title("🎙️ AI Paper Podcast Generator")
 st.markdown("""
