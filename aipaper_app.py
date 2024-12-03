@@ -432,134 +432,118 @@ with col2:
 # 音频处理区域
 if 'podcast_content' in st.session_state:
     st.subheader("🎵 音频处理")
-    
-    # 创建状态容器
-    status_container = st.empty()
-    
-    # 初始化session state
-    if 'status_queue' not in st.session_state:
-        st.session_state.status_queue = Queue()
-    if 'audio_status' not in st.session_state:
-        st.session_state.audio_status = {
-            "status": 0,
-            "check_count": 0,
-            "start_time": time.time(),
-            "last_check_time": None,
-            "last_status": None
-        }
-    
     audio_col1, audio_col2 = st.columns(2)
     
     with audio_col1:
-        # 添加测试按钮
-        if st.button("🧪 测试状态更新"):
-            with st.spinner("正在发送测试请求..."):
+        if st.button("🎙️ 生成音频"):
+            with st.spinner("正在发送音频生成请求..."):
                 try:
-                    # 测试内容
-                    test_content = {
-                        "title": "Revolutionizing Science: AI and the Art of Falsification",
-                        "description": """In this episode, we discuss the groundbreaking framework introduced in 'AIGS: Generating Science from AI-Powered Automated Falsification.' Join us as we explore how AI can automate the process of falsifying scientific claims, transforming the landscape of scientific research as we know it. With insights into deep learning, autonomous agents, and their implications for research methodology, listeners will discover how AI's role in science is not just supportive but potentially revolutionary. Could AI redefine the criteria for scientific truth? Tune in for an enlightening discussion!
-
-Paper Title: AIGS: Generating Science from AI-Powered Automated Falsification
-Authors: Zijun Liu, Kaiming Liu, Yiqi Zhu, Xuanyu Lei, Zonghan Yang, Zhenhe Zhang, Peng Li, Yang Liu  
-Publish Date: November 17, 2024  
-Link: https://arxiv.org/abs/2411.11910""",
-                        "paper_link": "https://arxiv.org/abs/2411.11910",
-                        "prompt_text": "Welcome to today's podcast where we dive into how AI is changing the face of scientific research, with a focus on a fascinating new framework for automated falsification. Let's explore the implications together."
-                    }
-                    
-                    if st.secrets.get("NotebookLM_API_KEY"):
-                        client = NotebookLMClient(
-                            st.secrets["NotebookLM_API_KEY"],
-                            webhook_url="http://localhost:5000/webhook"
-                        )
-                        
-                        resources = [
-                            {"content": test_content['paper_link'], "type": "website"}
-                        ]
-                        text = test_content['prompt_text']
-                        
-                        request_id = client.send_content(resources, text)
-                        
-                        if request_id:
-                            st.success("✅ 测试请求已发送！")
-                            
-                            # 重置状态
-                            st.session_state.should_stop_check = False
-                            st.session_state.request_id = request_id
-                            st.session_state.audio_status = {
-                                "status": 0,
-                                "check_count": 0,
-                                "start_time": time.time(),
-                                "last_check_time": None,
-                                "last_status": None
-                            }
-                            
-                            # 清空状态队列
-                            while not st.session_state.status_queue.empty():
-                                st.session_state.status_queue.get()
-                            
-                            # 定义状态检查函数
-                            def check_status_thread():
-                                check_count = 0
-                                while not st.session_state.should_stop_check:
-                                    try:
-                                        check_count += 1
-                                        current_time = time.strftime("%H:%M:%S")
-                                        
-                                        # 检查音频状态
-                                        status_data = client.check_status(request_id)
-                                        print(f"状态检查 #{check_count}: {status_data}")  # 调试输出
-                                        
-                                        if status_data:
-                                            # 更新状态信息
-                                            new_status = {
-                                                "status": status_data.get("status", 0),
-                                                "check_count": check_count,
-                                                "check_time": current_time,
-                                                "last_status": f"状态码: {status_data.get('status', 0)}",
-                                                "audio_url": status_data.get("audio_url"),
-                                                "error_message": status_data.get("error_message")
-                                            }
-                                            
-                                            # 放入队列
-                                            st.session_state.status_queue.put(new_status)
-                                            print(f"已更新状态: {new_status}")  # 调试输出
-                                            
-                                            # 如果处理完成或出错，停止检查
-                                            if status_data.get("audio_url") or status_data.get("error_message"):
-                                                st.session_state.should_stop_check = True
-                                                break
-                                        
-                                    except Exception as e:
-                                        print(f"状态检查出错: {str(e)}")
-                                        st.session_state.status_queue.put({
-                                            "error_message": f"状态检查出错: {str(e)}",
-                                            "check_count": check_count
-                                        })
-                                    
-                                    time.sleep(5)  # 每5秒检查一次
-                            
-                            # 启动状态检查线程
-                            status_thread = threading.Thread(target=check_status_thread, daemon=True)
-                            status_thread.start()
-                            
-                            # 等待线程启动
-                            time.sleep(1)
-                            st.rerun()
+                    # 处理 podcast_content
+                    content_data = None
+                    if hasattr(st.session_state.podcast_content, 'raw'):
+                        raw_content = st.session_state.podcast_content.raw
+                        if isinstance(raw_content, str):
+                            json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+                            content_data = json.loads(json_str)
                         else:
-                            st.error("❌ 发送测试请求失败")
+                            content_data = raw_content
+                    elif isinstance(st.session_state.podcast_content, str):
+                        content_data = json.loads(st.session_state.podcast_content)
+                    elif isinstance(st.session_state.podcast_content, dict):
+                        content_data = st.session_state.podcast_content
+                    
+                    if content_data is not None:
+                        if st.secrets.get("NotebookLM_API_KEY"):
+                            client = NotebookLMClient(
+                                st.secrets["NotebookLM_API_KEY"],
+                                webhook_url="http://localhost:5000/webhook"
+                            )
+                            
+                            resources = [
+                                {"content": content_data['paper_link'], "type": "website"}
+                            ]
+                            text = content_data['prompt_text']
+                            
+                            request_id = client.send_content(resources, text)
+                            
+                            if request_id:
+                                st.success("✅ 音频生成请求已发送！")
+                                
+                                # 重置状态
+                                st.session_state.should_stop_check = False
+                                st.session_state.request_id = request_id
+                                st.session_state.audio_status = {
+                                    "status": 0,
+                                    "check_count": 0,
+                                    "start_time": time.time(),
+                                    "last_check_time": None,
+                                    "last_status": None
+                                }
+                                
+                                # 清空状态队列
+                                while not st.session_state.status_queue.empty():
+                                    st.session_state.status_queue.get()
+                                
+                                # 定义状态检查函数
+                                def check_status_thread():
+                                    check_count = 0
+                                    while not st.session_state.should_stop_check:
+                                        try:
+                                            check_count += 1
+                                            current_time = time.strftime("%H:%M:%S")
+                                            
+                                            # 检查音频状态
+                                            status_data = client.check_status(request_id)
+                                            
+                                            if status_data:
+                                                # 更新状态信息
+                                                new_status = {
+                                                    "status": status_data.get("status", 0),
+                                                    "check_count": check_count,
+                                                    "check_time": current_time,
+                                                    "last_status": f"状态码: {status_data.get('status', 0)}",
+                                                    "audio_url": status_data.get("audio_url"),
+                                                    "error_message": status_data.get("error_message")
+                                                }
+                                                
+                                                # 放入队列
+                                                st.session_state.status_queue.put(new_status)
+                                                
+                                                # 如果处理完成或出错，停止检查
+                                                if status_data.get("audio_url") or status_data.get("error_message"):
+                                                    st.session_state.should_stop_check = True
+                                                    break
+                                            
+                                        except Exception as e:
+                                            print(f"状态检查出错: {str(e)}")
+                                            st.session_state.status_queue.put({
+                                                "error_message": f"状态检查出错: {str(e)}",
+                                                "check_count": check_count
+                                            })
+                                        
+                                        time.sleep(5)  # 每5秒检查一次
+                                
+                                # 启动状态检查线程
+                                threading.Thread(target=check_status_thread, daemon=True).start()
+                                
+                                st.rerun()
+                            else:
+                                st.error("❌ 发送音频生成请求失败")
+                        else:
+                            st.error("❌ NotebookLM API 密钥未设置")
                     else:
-                        st.error("❌ NotebookLM API 密钥未设置")
+                        st.error("❌ 无法解析播客内容")
                         
                 except Exception as e:
-                    st.error(f"❌ 发送测试请求时出错: {str(e)}")
+                    st.error(f"❌ 发送请求时出错: {str(e)}")
     
     with audio_col2:
-        # 显示状态更新
-        with status_container:
+        if 'audio_status' in st.session_state:
+            # 创建状态显示容器
+            status_container = st.empty()
+            
+            # 检查状态队列是否有更新
             try:
-                # 检查状态队列是否有更新
                 while not st.session_state.status_queue.empty():
                     new_status = st.session_state.status_queue.get_nowait()
                     if new_status is not None:
@@ -567,7 +551,6 @@ Link: https://arxiv.org/abs/2411.11910""",
                         current_status = st.session_state.audio_status.copy()
                         current_status.update(new_status)
                         st.session_state.audio_status = current_status
-                        print(f"状态已更新: {current_status}")  # 调试输出
             except Exception as e:
                 st.error(f"状态更新出错: {str(e)}")
             
@@ -575,50 +558,51 @@ Link: https://arxiv.org/abs/2411.11910""",
             status = st.session_state.audio_status
             current_status = status.get("status", "unknown")
             
-            # 显示状态文本
-            status_text = status_mapping.get(current_status, status_mapping["unknown"])
-            st.markdown(f"### 当前状态: {status_text}")
-            
-            # 显示检查信息
-            col1, col2 = st.columns(2)
-            with col1:
-                st.text(f"检查次数: {status.get('check_count', 0)}")
-                check_time = status.get('check_time', '未知')
-                st.text(f"最后检查: {check_time}")
-            
-            with col2:
-                if 'start_time' in status:
-                    elapsed_time = int(time.time() - status['start_time'])
-                    minutes = elapsed_time // 60
-                    seconds = elapsed_time % 60
-                    st.text(f"处理时间: {minutes}分{seconds}秒")
-            
-            # 显示进度条
-            if isinstance(current_status, (int, float)):
-                progress = min(int(current_status), 100)
-                st.progress(progress)
-                st.text(f"进度: {progress}%")
-            
-            # 显示最后一次状态信息
-            if status.get('last_status'):
-                st.info(status['last_status'])
-            
-            # 显示错误信息
-            if status.get("error_message"):
-                st.error(f"错误: {status['error_message']}")
-            
-            # 显示音频
-            if status.get("audio_url"):
-                st.success("✨ 音频生成完成！")
-                st.audio(status["audio_url"])
-                st.session_state.audio_url = status["audio_url"]
-                st.markdown(f"[📥 下载音频]({status['audio_url']})")
-                st.session_state.should_stop_check = True
-            
-            # 自动刷新
-            if not st.session_state.should_stop_check:
-                time.sleep(2)  # 降低刷新频率
-                st.rerun()
+            with status_container:
+                # 显示状态文本
+                status_text = status_mapping.get(current_status, status_mapping["unknown"])
+                st.markdown(f"### 当前状态: {status_text}")
+                
+                # 显示检查信息
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.text(f"检查次数: {status.get('check_count', 0)}")
+                    check_time = status.get('check_time', '未知')
+                    st.text(f"最后检查: {check_time}")
+                
+                with col2:
+                    if 'start_time' in status:
+                        elapsed_time = int(time.time() - status['start_time'])
+                        minutes = elapsed_time // 60
+                        seconds = elapsed_time % 60
+                        st.text(f"处理时间: {minutes}分{seconds}秒")
+                
+                # 显示进度条
+                if isinstance(current_status, (int, float)):
+                    progress = min(int(current_status), 100)
+                    st.progress(progress)
+                    st.text(f"进度: {progress}%")
+                
+                # 显示最后一次状态信息
+                if status.get('last_status'):
+                    st.info(status['last_status'])
+                
+                # 显示错误信息
+                if status.get("error_message"):
+                    st.error(f"错误: {status['error_message']}")
+                
+                # 显示音频
+                if status.get("audio_url"):
+                    st.success("✨ 音频生成完成！")
+                    st.audio(status["audio_url"])
+                    st.session_state.audio_url = status["audio_url"]
+                    st.markdown(f"[📥 下载音频]({status['audio_url']})")
+                    st.session_state.should_stop_check = True
+                
+                # 自动刷新
+                if not st.session_state.should_stop_check:
+                    time.sleep(2)  # 降低刷新频率
+                    st.rerun()
 
 # 发布区域
 if 'audio_url' in st.session_state:
