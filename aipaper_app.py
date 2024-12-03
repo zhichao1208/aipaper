@@ -356,7 +356,7 @@ if 'podcast_content' in st.session_state:
                         st.error("❌ 播客内容格式错误")
                     else:
                         # 验证必要字段
-                        required_fields = ['title', 'description', 'paper_link', 'prompt']
+                        required_fields = ['title', 'description', 'paper_link', 'prompt_text']
                         missing_fields = [field for field in required_fields if not content_data.get(field)]
                         
                         if missing_fields:
