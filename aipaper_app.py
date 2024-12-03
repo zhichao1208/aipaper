@@ -18,6 +18,7 @@ import threading
 from datetime import datetime
 import re
 import html
+from queue import Queue
 
 # 在导入部分之后，页面配置之前添加
 def parse_podbean_feed(feed_url: str) -> list:
@@ -395,29 +396,26 @@ if 'podcast_content' in st.session_state:
                                     st.success("✨ 音频生成请求已发送！")
                                     
                                     # 修改状态检查部分
-                                    def check_status():
+                                    def check_status(request_id: str, client: NotebookLMClient, queue: Queue):
+                                        """
+                                        检查音频生成状态的后台任务
+                                        
+                                        Args:
+                                            request_id: 请求ID
+                                            client: NotebookLM客户端
+                                            queue: 状态更新队列
+                                        """
                                         check_count = 0
                                         max_checks = 30  # 最多检查30次
                                         
-                                        while check_count < max_checks:
+                                        while check_count < max_checks and not st.session_state.should_stop_check:
                                             try:
                                                 status_data = client.check_status(request_id)
                                                 if status_data:
-                                                    # 更新状态显示，但不直接使用 st
-                                                    new_status = {
-                                                        "status": status_data.get("status"),
-                                                        "updated_on": status_data.get("updated_on"),
-                                                        "audio_url": status_data.get("audio_url"),
-                                                        "error_message": status_data.get("error_message")
-                                                    }
+                                                    # 将状态放入队列
+                                                    queue.put(status_data)
                                                     
-                                                    # 使用线程安全的方式更新 session_state
-                                                    if "audio_status" in st.session_state:
-                                                        st.session_state.audio_status.update(new_status)
-                                                    else:
-                                                        st.session_state.audio_status = new_status
-                                                    
-                                                    # 如果有音频URL或错误信息，结束检查
+                                                    # 如果处理完成或出错，结束检查
                                                     if status_data.get("audio_url") or status_data.get("error_message"):
                                                         break
                                                         
@@ -427,8 +425,14 @@ if 'podcast_content' in st.session_state:
                                             check_count += 1
                                             time.sleep(20)  # 每20秒检查一次
                                         
+                                        # 标记检查结束
+                                        queue.put(None)
+                                    
                                     # 在后台线程中运行状态检查
-                                    status_thread = threading.Thread(target=check_status)
+                                    status_thread = threading.Thread(
+                                        target=check_status,
+                                        args=(request_id, client, status_queue)
+                                    )
                                     status_thread.daemon = True
                                     status_thread.start()
                                     
@@ -445,14 +449,26 @@ if 'podcast_content' in st.session_state:
     
     with audio_col2:
         if 'audio_status' in st.session_state:
+            # 检查队列中是否有新状态
+            try:
+                while not status_queue.empty():
+                    new_status = status_queue.get_nowait()
+                    if new_status is None:
+                        # 检查结束
+                        break
+                    # 更新状态
+                    st.session_state.audio_status.update(new_status)
+            except Exception as e:
+                print(f"更新状态出错: {str(e)}")
+            
             status = st.session_state.audio_status
             
             # 使用更详细的状态显示
             status_mapping = {
                 0: "⌛ 排队中...",
-                25: "🔄 正在初始化...",
-                50: "🎯 正在处理内容...",
-                75: "🎵 正在生成音频...",
+                30: "🔄 正在初始化...",
+                60: "🎯 正在处理内容...",
+                80: "🎵 正在生成音频...",
                 100: "✅ 已完成",
                 "failed": "❌ 失败",
                 "error": "⚠️ 出错",
@@ -496,13 +512,25 @@ if 'podcast_content' in st.session_state:
                     st.text(f"处理时间: {int(elapsed_time)}秒")
                 
                 # 添加刷新按钮
-                if st.button("🔄 刷新状态"):
-                    st.rerun()
+                control_col1, control_col2 = st.columns(2)
                 
-                # 如果还在处理中，自动刷新
+                with control_col1:
+                    if st.button("🔄 刷新状态"):
+                        st.rerun()
+                
+                with control_col2:
+                    if st.button("⏹️ 停止检查"):
+                        st.session_state.should_stop_check = True
+                        st.success("状态检查已停止")
+                        time.sleep(1)
+                        st.rerun()
+                
+                # 如果还在处理中且未停止，自动刷新
                 current_status = status.get("status", 0)
-                if isinstance(current_status, (int, float)) and current_status < 100:
-                    time.sleep(10)  # 每10刷新一次
+                if (isinstance(current_status, (int, float)) and 
+                    current_status < 100 and 
+                    not st.session_state.should_stop_check):
+                    time.sleep(10)  # 每10秒刷新一次
                     st.rerun()
 
 # 发布区域
