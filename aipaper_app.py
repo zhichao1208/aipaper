@@ -262,7 +262,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 添加播客列表标题和展开选项
-with st.expander("🎧 最新播���列表", expanded=True):
+with st.expander("🎧 最新播客列表", expanded=True):
     feed_url = "https://feed.podbean.com/zhichao1208/feed.xml"
     episodes = parse_podbean_feed(feed_url)
     
@@ -471,7 +471,7 @@ if 'podcast_content' in st.session_state:
                             ]
                             text = content_data['prompt_text']
                             
-                            # 发送请求并获取request_id
+                            # ���送请求并获取request_id
                             request_id = client.send_content(resources, text)
                             
                             if request_id:
@@ -495,17 +495,33 @@ if 'podcast_content' in st.session_state:
                                     
                                     while check_count < max_checks and not st.session_state.should_stop_check:
                                         try:
+                                            # 添加检查次数反馈
+                                            check_feedback = {
+                                                "check_count": check_count + 1,
+                                                "max_checks": max_checks,
+                                                "check_time": datetime.now().strftime("%H:%M:%S")
+                                            }
+                                            
                                             status_data = client.check_status(request_id)
                                             if status_data:
-                                                # 将状态放入队列
+                                                # 将状态和检查信息合并
+                                                status_data.update(check_feedback)
                                                 st.session_state.status_queue.put(status_data)
                                                 
                                                 # 如果处理完成或出错，结束检查
                                                 if status_data.get("audio_url") or status_data.get("error_message"):
                                                     break
                                                     
+                                            else:
+                                                # 即使没有状态数据也发送检查信息
+                                                st.session_state.status_queue.put(check_feedback)
+                                                
                                         except Exception as e:
-                                            print(f"状态检查出错: {str(e)}")
+                                            error_feedback = {
+                                                **check_feedback,
+                                                "error": f"状态检查出错: {str(e)}"
+                                            }
+                                            st.session_state.status_queue.put(error_feedback)
                                         
                                         check_count += 1
                                         time.sleep(20)  # 每20秒检查一次
