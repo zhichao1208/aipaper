@@ -409,7 +409,7 @@ with col2:
                                     
                                     # 显示内容
                                     st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
+                                    st.markdown(f"**���述**: {content_data.get('description', 'N/A')}")
                                     st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
                                     
                                     # 保存解析后的内容到 session_state
@@ -495,17 +495,25 @@ if 'podcast_content' in st.session_state:
                                     
                                     while check_count < max_checks and not st.session_state.should_stop_check:
                                         try:
-                                            status_data = client.check_status(request_id)
+                                            # 每次检查前更新状态
+                                            check_count += 1
                                             current_time = time.time()
                                             elapsed_time = int(current_time - st.session_state.start_time)
                                             
+                                            # 即使没有新状态也更新检查信息
+                                            base_status = {
+                                                'check_count': check_count,
+                                                'elapsed_time': elapsed_time,
+                                                'check_time': time.strftime("%H:%M:%S"),
+                                                'status': st.session_state.audio_status.get('status', 0)
+                                            }
+                                            st.session_state.status_queue.put(base_status)
+                                            
+                                            # 检查音频状态
+                                            status_data = client.check_status(request_id)
                                             if status_data:
-                                                # 添加时间戳和检查次数信息
-                                                status_data['check_count'] = check_count + 1
-                                                status_data['elapsed_time'] = elapsed_time
-                                                status_data['check_time'] = time.strftime("%H:%M:%S")
-                                                
-                                                # 将状态放入队列
+                                                # 合并基础状态和音频状态
+                                                status_data.update(base_status)
                                                 st.session_state.status_queue.put(status_data)
                                                 
                                                 # 如果处理完成或出错，结束检查
@@ -513,9 +521,13 @@ if 'podcast_content' in st.session_state:
                                                     break
                                                     
                                         except Exception as e:
+                                            error_status = {
+                                                **base_status,
+                                                'error_message': f"状态检查出错: {str(e)}"
+                                            }
+                                            st.session_state.status_queue.put(error_status)
                                             print(f"状态检查出错: {str(e)}")
                                         
-                                        check_count += 1
                                         time.sleep(5)  # 每5秒检查一次
                                     
                                     # 标记检查结束
@@ -552,79 +564,82 @@ if 'podcast_content' in st.session_state:
                         break
                     # 更新状态
                     st.session_state.audio_status.update(new_status)
+                    
+                    # 立即显示更新后的状态
+                    status = st.session_state.audio_status
+                    
+                    # 使用更详细的状态显示
+                    status_mapping = {
+                        0: "⌛ 排队中...",
+                        30: "🔄 正在初始化...",
+                        60: "🎯 正在处理内容...",
+                        80: "🎵 正在生成音频...",
+                        100: "✅ 已完成",
+                        "failed": "❌ 失败",
+                        "error": "⚠️ 出错",
+                        "unknown": "❓ 未知状态"
+                    }
+                    
+                    # 创建状态显示容器
+                    status_container = st.empty()
+                    with status_container:
+                        # 显示当前状态
+                        current_status = status.get("status", "unknown")
+                        status_text = status_mapping.get(current_status, status_mapping["unknown"])
+                        st.markdown(f"### 当前状态: {status_text}")
+                        
+                        # 显示检查信息
+                        st.text(f"检查次数: {status.get('check_count', 0)}")
+                        st.text(f"最后检查时间: {status.get('check_time', '未知')}")
+                        
+                        # 显示进度条
+                        if isinstance(current_status, (int, float)) and current_status < 100:
+                            progress = int(current_status)
+                            st.progress(progress)
+                            st.text(f"进度: {progress}%")
+                        
+                        # 显示处理时间
+                        elapsed_time = status.get('elapsed_time', 0)
+                        minutes = elapsed_time // 60
+                        seconds = elapsed_time % 60
+                        st.text(f"总处理时间: {minutes}分{seconds}秒")
+                        
+                        # 显示错误信息（如果有）
+                        if status.get("error_message"):
+                            st.error(f"错误信息: {status.get('error_message')}")
+                        
+                        # 显示音频（如果已生成）
+                        if status.get("audio_url"):
+                            st.success("✨ 音频生成完成！")
+                            st.audio(status.get("audio_url"))
+                            st.session_state.audio_url = status.get("audio_url")
+                            # 添加下载按钮
+                            st.markdown(f"[📥 下载音频]({status.get('audio_url')})")
+                
             except Exception as e:
+                st.error(f"更新状态出错: {str(e)}")
                 print(f"更新状态出错: {str(e)}")
             
-            status = st.session_state.audio_status
+            # 添加控制按钮
+            control_col1, control_col2 = st.columns(2)
             
-            # 使用更详细的状态显示
-            status_mapping = {
-                0: "⌛ 排队中...",
-                30: "🔄 正在初始化...",
-                60: "🎯 正在处理内容...",
-                80: "🎵 正在生成音频...",
-                100: "✅ 已完成",
-                "failed": "❌ 失败",
-                "error": "⚠️ 出错",
-                "unknown": "❓ 未知状态"
-            }
-            
-            # 创建状态显示容器
-            status_container = st.container()
-            with status_container:
-                # 显示当前状态
-                current_status = status.get("status", "unknown")
-                status_text = status_mapping.get(current_status, status_mapping["unknown"])
-                st.markdown(f"### 当前状态: {status_text}")
-                
-                # 显示检查信息
-                st.text(f"检查次数: {status.get('check_count', 0)}")
-                st.text(f"最后检查时间: {status.get('check_time', '未知')}")
-                
-                # 显示进度条
-                if isinstance(current_status, (int, float)) and current_status < 100:
-                    progress = int(current_status)
-                    st.progress(progress)
-                    st.text(f"进度: {progress}%")
-                
-                # 显示处理时间
-                elapsed_time = status.get('elapsed_time', 0)
-                minutes = elapsed_time // 60
-                seconds = elapsed_time % 60
-                st.text(f"总处理时间: {minutes}分{seconds}秒")
-                
-                # 显示错误信息（如果有）
-                if status.get("error_message"):
-                    st.error(f"错误信息: {status.get('error_message')}")
-                
-                # 显示音频（如果已生成）
-                if status.get("audio_url"):
-                    st.success("✨ 音频生成完成！")
-                    st.audio(status.get("audio_url"))
-                    st.session_state.audio_url = status.get("audio_url")
-                    # 添加下载按钮
-                    st.markdown(f"[📥 下载音频]({status.get('audio_url')})")
-                
-                # 添加控制按钮
-                control_col1, control_col2 = st.columns(2)
-                
-                with control_col1:
-                    if st.button("🔄 刷新状态", key="refresh_status"):
-                        st.rerun()
-                
-                with control_col2:
-                    if st.button("⏹️ 停止检查", key="stop_check"):
-                        st.session_state.should_stop_check = True
-                        st.success("状态检查已停止")
-                        time.sleep(1)
-                        st.rerun()
-                
-                # 如果还在处理中且未停止，自动刷新
-                if (isinstance(current_status, (int, float)) and 
-                    current_status < 100 and 
-                    not st.session_state.should_stop_check):
-                    time.sleep(5)  # 每5秒刷新一次
+            with control_col1:
+                if st.button("🔄 刷新状态", key="refresh_status"):
                     st.rerun()
+            
+            with control_col2:
+                if st.button("⏹️ 停止检查", key="stop_check"):
+                    st.session_state.should_stop_check = True
+                    st.success("状态检查已停止")
+                    time.sleep(1)
+                    st.rerun()
+            
+            # 如果还在处理中且未停止，自动刷新
+            if (isinstance(current_status, (int, float)) and 
+                current_status < 100 and 
+                not st.session_state.should_stop_check):
+                time.sleep(5)  # 每5秒刷新一次
+                st.rerun()
 
 # 发布区域
 if 'audio_url' in st.session_state:
