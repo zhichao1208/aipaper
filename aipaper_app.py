@@ -394,7 +394,7 @@ if 'podcast_content' in st.session_state:
                                     st.session_state.start_time = time.time()  # 记录开始时间
                                     st.success("✨ 音频生成请求已发送！")
                                     
-                                    # 启动状态检查
+                                    # 修改状态检查部分
                                     def check_status():
                                         check_count = 0
                                         max_checks = 30  # 最多检查30次
@@ -403,19 +403,22 @@ if 'podcast_content' in st.session_state:
                                             try:
                                                 status_data = client.check_status(request_id)
                                                 if status_data:
-                                                    # 更新状态显示
-                                                    st.session_state.audio_status = {
+                                                    # 更新状态显示，但不直接使用 st
+                                                    new_status = {
                                                         "status": status_data.get("status"),
                                                         "updated_on": status_data.get("updated_on"),
                                                         "audio_url": status_data.get("audio_url"),
                                                         "error_message": status_data.get("error_message")
                                                     }
                                                     
+                                                    # 使用线程安全的方式更新 session_state
+                                                    if "audio_status" in st.session_state:
+                                                        st.session_state.audio_status.update(new_status)
+                                                    else:
+                                                        st.session_state.audio_status = new_status
+                                                    
                                                     # 如果有音频URL或错误信息，结束检查
-                                                    if status_data.get("audio_url"):
-                                                        st.session_state.audio_url = status_data.get("audio_url")
-                                                        break
-                                                    elif status_data.get("error_message"):
+                                                    if status_data.get("audio_url") or status_data.get("error_message"):
                                                         break
                                                         
                                             except Exception as e:
@@ -429,7 +432,8 @@ if 'podcast_content' in st.session_state:
                                     status_thread.daemon = True
                                     status_thread.start()
                                     
-                                    # 使用新的 rerun 方法
+                                    # 使用定时刷新而不是 rerun
+                                    time.sleep(2)  # 等待初始状态更新
                                     st.rerun()
                 
                 except json.JSONDecodeError as e:
@@ -493,6 +497,12 @@ if 'podcast_content' in st.session_state:
                 
                 # 添加刷新按钮
                 if st.button("🔄 刷新状态"):
+                    st.rerun()
+                
+                # 如果还在处理中，自动刷新
+                current_status = status.get("status", 0)
+                if isinstance(current_status, (int, float)) and current_status < 100:
+                    time.sleep(10)  # 每10刷新一次
                     st.rerun()
 
 # 发布区域
