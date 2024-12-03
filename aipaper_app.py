@@ -432,9 +432,125 @@ with col2:
 # 音频处理区域
 if 'podcast_content' in st.session_state:
     st.subheader("🎵 音频处理")
+    
+    # 初始化session state
+    if 'status_queue' not in st.session_state:
+        st.session_state.status_queue = Queue()
+    if 'audio_status' not in st.session_state:
+        st.session_state.audio_status = {
+            "status": 0,
+            "check_count": 0,
+            "start_time": time.time(),
+            "last_check_time": None,
+            "last_status": None
+        }
+    
     audio_col1, audio_col2 = st.columns(2)
     
     with audio_col1:
+        # 添加测试按钮
+        if st.button("🧪 测试状态更新"):
+            with st.spinner("正在发送测试请求..."):
+                try:
+                    # 测试内容
+                    test_content = {
+                        "title": "Revolutionizing Science: AI and the Art of Falsification",
+                        "description": """In this episode, we discuss the groundbreaking framework introduced in 'AIGS: Generating Science from AI-Powered Automated Falsification.' Join us as we explore how AI can automate the process of falsifying scientific claims, transforming the landscape of scientific research as we know it. With insights into deep learning, autonomous agents, and their implications for research methodology, listeners will discover how AI's role in science is not just supportive but potentially revolutionary. Could AI redefine the criteria for scientific truth? Tune in for an enlightening discussion!
+
+Paper Title: AIGS: Generating Science from AI-Powered Automated Falsification
+Authors: Zijun Liu, Kaiming Liu, Yiqi Zhu, Xuanyu Lei, Zonghan Yang, Zhenhe Zhang, Peng Li, Yang Liu  
+Publish Date: November 17, 2024  
+Link: https://arxiv.org/abs/2411.11910""",
+                        "paper_link": "https://arxiv.org/abs/2411.11910",
+                        "prompt_text": "Welcome to today's podcast where we dive into how AI is changing the face of scientific research, with a focus on a fascinating new framework for automated falsification. Let's explore the implications together."
+                    }
+                    
+                    if st.secrets.get("NotebookLM_API_KEY"):
+                        client = NotebookLMClient(
+                            st.secrets["NotebookLM_API_KEY"],
+                            webhook_url="http://localhost:5000/webhook"
+                        )
+                        
+                        resources = [
+                            {"content": test_content['paper_link'], "type": "website"}
+                        ]
+                        text = test_content['prompt_text']
+                        
+                        request_id = client.send_content(resources, text)
+                        
+                        if request_id:
+                            st.success("✅ 测试请求已发送！")
+                            
+                            # 重置状态
+                            st.session_state.should_stop_check = False
+                            st.session_state.request_id = request_id
+                            st.session_state.audio_status = {
+                                "status": 0,
+                                "check_count": 0,
+                                "start_time": time.time(),
+                                "last_check_time": None,
+                                "last_status": None
+                            }
+                            
+                            # 清空状态队列
+                            while not st.session_state.status_queue.empty():
+                                st.session_state.status_queue.get()
+                            
+                            # 定义状态检查函数
+                            def check_status_thread():
+                                check_count = 0
+                                while not st.session_state.should_stop_check:
+                                    try:
+                                        check_count += 1
+                                        current_time = time.strftime("%H:%M:%S")
+                                        
+                                        # 检查音频状态
+                                        status_data = client.check_status(request_id)
+                                        print(f"状态检查 #{check_count}: {status_data}")  # 调试输出
+                                        
+                                        if status_data:
+                                            # 更新状态信息
+                                            new_status = {
+                                                "status": status_data.get("status", 0),
+                                                "check_count": check_count,
+                                                "check_time": current_time,
+                                                "last_status": f"状态码: {status_data.get('status', 0)}",
+                                                "audio_url": status_data.get("audio_url"),
+                                                "error_message": status_data.get("error_message")
+                                            }
+                                            
+                                            # 放入队列
+                                            st.session_state.status_queue.put(new_status)
+                                            print(f"已更新状态: {new_status}")  # 调试输出
+                                            
+                                            # 如果处理完成或出错，停止检查
+                                            if status_data.get("audio_url") or status_data.get("error_message"):
+                                                st.session_state.should_stop_check = True
+                                                break
+                                        
+                                    except Exception as e:
+                                        print(f"状态检查出错: {str(e)}")
+                                        st.session_state.status_queue.put({
+                                            "error_message": f"状态检查出错: {str(e)}",
+                                            "check_count": check_count
+                                        })
+                                    
+                                    time.sleep(5)  # 每5秒检查一次
+                            
+                            # 启动状态检查线程
+                            status_thread = threading.Thread(target=check_status_thread, daemon=True)
+                            status_thread.start()
+                            
+                            st.rerun()
+                        else:
+                            st.error("❌ 发送测试请求失败")
+                    else:
+                        st.error("❌ NotebookLM API 密钥未设置")
+                        
+                except Exception as e:
+                    st.error(f"❌ 发送测试请求时出错: {str(e)}")
+        
+        # 原有的生成音频按钮
         if st.button("🎙️ 生成音频"):
             with st.spinner("正在发送音频生成请求..."):
                 try:
@@ -494,6 +610,7 @@ if 'podcast_content' in st.session_state:
                                             
                                             # 检查音频状态
                                             status_data = client.check_status(request_id)
+                                            print(f"状态检查 #{check_count}: {status_data}")  # 调试输出
                                             
                                             if status_data:
                                                 # 更新状态信息
@@ -508,6 +625,7 @@ if 'podcast_content' in st.session_state:
                                                 
                                                 # 放入队列
                                                 st.session_state.status_queue.put(new_status)
+                                                print(f"已更新状态: {new_status}")  # 调试输出
                                                 
                                                 # 如果处理完成或出错，停止检查
                                                 if status_data.get("audio_url") or status_data.get("error_message"):
@@ -524,7 +642,8 @@ if 'podcast_content' in st.session_state:
                                         time.sleep(5)  # 每5秒检查一次
                                 
                                 # 启动状态检查线程
-                                threading.Thread(target=check_status_thread, daemon=True).start()
+                                status_thread = threading.Thread(target=check_status_thread, daemon=True)
+                                status_thread.start()
                                 
                                 st.rerun()
                             else:
@@ -551,6 +670,7 @@ if 'podcast_content' in st.session_state:
                         current_status = st.session_state.audio_status.copy()
                         current_status.update(new_status)
                         st.session_state.audio_status = current_status
+                        print(f"状态已更新: {current_status}")  # 调试输出
             except Exception as e:
                 st.error(f"状态更新出错: {str(e)}")
             
