@@ -390,7 +390,8 @@ if 'podcast_content' in st.session_state:
                                     st.error("❌ 发送音频生成请求失败。")
                                 else:
                                     st.session_state.request_id = request_id
-                                    st.session_state.audio_status = {"status": "processing"}
+                                    st.session_state.audio_status = {"status": 0}  # 初始状态为0
+                                    st.session_state.start_time = time.time()  # 记录开始时间
                                     st.success("✨ 音频生成请求已发送！")
                                     
                                     # 启动状态检查
@@ -442,32 +443,57 @@ if 'podcast_content' in st.session_state:
         if 'audio_status' in st.session_state:
             status = st.session_state.audio_status
             
-            # 使用更友好的状态显示
+            # 使用更详细的状态显示
             status_mapping = {
-                "processing": "⏳ 正在处理",
-                "completed": "✅ 已完成",
+                0: "⌛ 排队中...",
+                25: "🔄 正在初始化...",
+                50: "🎯 正在处理内容...",
+                75: "🎵 正在生成音频...",
+                100: "✅ 已完成",
                 "failed": "❌ 失败",
-                "pending": "⌛ 待中"
+                "error": "⚠️ 出错",
+                "unknown": "❓ 未知状态"
             }
             
-            current_status = status.get("status", "unknown")
-            st.write("当前状态:", status_mapping.get(current_status, current_status))
-            
-            if status.get("updated_on"):
-                st.write("更新时间:", status.get("updated_on"))
-            if status.get("error_message"):
-                st.error(f"❌ 错误: {status.get('error_message')}")
-            if status.get("audio_url"):
-                st.success("✨ 音频生成完成！")
-                st.audio(status.get("audio_url"))  # 直接播放音频
-                st.session_state.audio_url = status.get("audio_url")
+            # 创建状态显示容器
+            status_container = st.container()
+            with status_container:
+                # 显示当前状态
+                current_status = status.get("status", "unknown")
+                status_text = status_mapping.get(current_status, status_mapping["unknown"])
+                st.markdown(f"### 当前状态: {status_text}")
                 
-            # 添加进度条
-            if current_status == "processing":
-                progress_bar = st.progress(0)
-                for i in range(100):
-                    time.sleep(0.1)
-                    progress_bar.progress(i + 1)
+                # 显示进度条
+                if isinstance(current_status, (int, float)) and current_status < 100:
+                    progress = int(current_status)
+                    st.progress(progress)
+                    st.text(f"进度: {progress}%")
+                
+                # 显示更新时间
+                if status.get("updated_on"):
+                    st.text(f"最后更新: {status.get('updated_on')}")
+                
+                # 显示错误信息（如果有）
+                if status.get("error_message"):
+                    st.error(f"错误信息: {status.get('error_message')}")
+                
+                # 显示音频（如果已生成）
+                if status.get("audio_url"):
+                    st.success("✨ 音频生成完成！")
+                    st.audio(status.get("audio_url"))
+                    st.session_state.audio_url = status.get("audio_url")
+                    # 添加下载按钮
+                    st.markdown(f"[📥 下载音频]({status.get('audio_url')})")
+                
+                # 显示处理时间
+                if hasattr(st.session_state, 'start_time'):
+                    current_time = time.time()
+                    elapsed_time = current_time - st.session_state.start_time
+                    st.text(f"处理时间: {int(elapsed_time)}秒")
+                
+                # 添加刷新按钮
+                if st.button("🔄 刷新状态"):
+                    st.rerun()
 
 # 发布区域
 if 'audio_url' in st.session_state:
