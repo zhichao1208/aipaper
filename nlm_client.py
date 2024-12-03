@@ -138,7 +138,7 @@ class NotebookLMClient:
         try:
             if not request_id:
                 raise ValueError("Request ID 不能为空")
-                
+            
             self.logger.info(f"检查请求状态: {request_id}")
             
             headers = {
@@ -146,8 +146,12 @@ class NotebookLMClient:
                 "Content-Type": "application/json"
             }
             
+            # 根据文档更新正确的 URL
+            status_url = f"{self.base_url}/content/status/{request_id}"
+            self.logger.info(f"检查状态 URL: {status_url}")
+            
             response = requests.get(
-                f"{self.base_url}/status/{request_id}",
+                status_url,
                 headers=headers,
                 timeout=30
             )
@@ -156,7 +160,15 @@ class NotebookLMClient:
             self.logger.debug(f"状态检查响应: {response.text}")
             
             response.raise_for_status()
-            return response.json()
+            status_data = response.json()
+            
+            # 根据文档处理状态响应
+            return {
+                "status": status_data.get("status", 0),  # 0-100, 0表示排队中，100表示完成
+                "updated_on": status_data.get("updated_on"),
+                "audio_url": status_data.get("audio_url"),
+                "error_message": status_data.get("error_message")
+            }
             
         except Exception as e:
             self.logger.error(f"状态检查错误: {str(e)}")
