@@ -36,7 +36,7 @@ if 'status_queue' not in st.session_state:
     st.session_state.status_queue = queue.Queue()
 
 # 页面标题和说明
-st.title("🎙️ AI Paper Podcast Generator")
+st.title("🎙️ AI Paper Podcast Generator New")
 st.markdown("将学术论文转换为引人入胜的播客内容。")
 
 # 创建实例
