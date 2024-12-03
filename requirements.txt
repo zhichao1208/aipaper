@@ -9,3 +9,4 @@ soundfile
 ffmpeg
 pysqlite3-binary
 requests
+cloudinary>=1.36.0

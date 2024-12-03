@@ -11,11 +11,21 @@ import openai
 import requests  # 添加  requests 库
 from aipaper_crew import AIPaperCrew, PapersList, ChosenPaper, PodcastContent
 import json
+from cloud_storage import CloudStorage
+import os
+
 # 初始化 OpenAI API
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 openai_model_name = st.secrets["OPENAI_MODEL_NAME"]  # 获取 OpenAI 模型名称
 exa_api_key = st.secrets["EXA_API_KEY"]  # 获取 EXA API 密钥
 serper_api_key = st.secrets["SERPER_API_KEY"]  # 获取 Serper API 密钥
+
+# 初始化 Cloudinary
+cloud_storage = CloudStorage(
+    cloud_name=st.secrets["cloudinary_cloud_name"],
+    api_key=st.secrets["cloudinary_api_key"],
+    api_secret=st.secrets["cloudinary_api_secret"]
+)
 
 # 初始化
 st.title("AI Paper Podcast Generator")
@@ -108,22 +118,52 @@ if st.button("检查 NLM 状态"):
         audio_url = status_data.get("audio_url")
         if audio_url:
             st.write("正在下载音频...")
-            wav_path = "downloaded_audio.wav"
-            mp3_path = "converted_audio.mp3"
-            audio_handler.download_audio(audio_url, wav_path)
-            audio_handler.convert_wav_to_mp3(wav_path, mp3_path)
+            temp_wav_path = "temp_audio.wav"
+            temp_mp3_path = "temp_audio.mp3"
+            
+            # 下载音频
+            if cloud_storage.download_audio(audio_url, temp_wav_path):
+                # 转换音频
+                audio_handler.convert_wav_to_mp3(temp_wav_path, temp_mp3_path)
+                
+                # 上传到 Cloudinary
+                upload_result = cloud_storage.upload_audio(temp_mp3_path)
+                if upload_result["success"]:
+                    st.session_state.audio_url = upload_result["url"]
+                    st.session_state.audio_public_id = upload_result["public_id"]
+                    st.success("音频处理完成并上传到云存储！")
+                    
+                    # 清理临时文件
+                    os.remove(temp_wav_path)
+                    os.remove(temp_mp3_path)
+                else:
+                    st.error("上传到云存储失败。")
+            else:
+                st.error("下载音频失败。")
 
 # 步骤 6: 上传到 Podbean
-if 'mp3_path' in locals():  # 确保 mp3_path 已定义
-    podbean_response = podbean_uploader.authorize_file_upload("converted_audio.mp3", mp3_path)
+if 'audio_url' in st.session_state and st.button("发布到 Podbean"):
+    # 使用云存储的 URL
+    podbean_response = podbean_uploader.authorize_file_upload(
+        "podcast_audio.mp3",
+        st.session_state.audio_url
+    )
     if podbean_response:
         presigned_url = podbean_response['presigned_url']
-        upload_success = podbean_uploader.upload_file_to_presigned_url(presigned_url, mp3_path)
-        if upload_success:
-            st.success("音频上传成功！")
+        # 从云存储下载并上传到 Podbean
+        temp_mp3_path = "temp_podbean.mp3"
+        if cloud_storage.download_audio(st.session_state.audio_url, temp_mp3_path):
+            upload_success = podbean_uploader.upload_file_to_presigned_url(
+                presigned_url,
+                temp_mp3_path
+            )
+            os.remove(temp_mp3_path)  # 清理临时文件
+            
+            if upload_success:
+                st.success("音频发布到 Podbean 成功！")
+            else:
+                st.error("音频发布到 Podbean 失败。")
         else:
-            st.error("音频上传失败。")
+            st.error("从云存储下载音频失败。")
     else:
-        st.error("获取上传授权失败。")
-else:
-    st.error("mp3_path 未定义，无法上传音频。")
+        st.error("获取 Podbean 上传授权失败。")
