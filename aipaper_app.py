@@ -104,7 +104,7 @@ def normalize_podcast_content(content: dict) -> Optional[Dict[str, Any]]:
 
 def generate_content_with_chatgpt(paper_link: str) -> Optional[Dict[str, Any]]:
     """
-    使用ChatGPT直接生��播客内容
+    使用ChatGPT直接生播客内容
     
     Args:
         paper_link: 论文链接
@@ -357,11 +357,11 @@ with col1:
                         
                         if paper_result:
                             st.session_state.papers = paper_result
-                            st.success("✨ 找到相关论文！")
+                            st.success("��� 找到相关论文！")
                             with st.expander("📄 查看论文列表", expanded=True):
                                 st.markdown(paper_result)
                         else:
-                            st.error("❌ 未找到相���论文。")
+                            st.error("❌ 未找到相论文。")
                     except Exception as e:
                         st.error(f"❌ 搜索过程中出错: {str(e)}")
         
@@ -464,6 +464,7 @@ if 'podcast_content' in st.session_state:
                     st.write("Debug - Raw Content:", st.session_state.podcast_content)
                     
                     # 处理 podcast_content
+                    content_data = None
                     if hasattr(st.session_state.podcast_content, 'raw'):
                         # 处理 CrewOutput 类型
                         raw_content = st.session_state.podcast_content.raw
@@ -481,54 +482,54 @@ if 'podcast_content' in st.session_state:
                     elif isinstance(st.session_state.podcast_content, dict):
                         content_data = st.session_state.podcast_content
                     else:
-                        raise ValueError(f"未知的内容格式: {type(st.session_state.podcast_content)}")
+                        st.error(f"❌ 未知的内容格式: {type(st.session_state.podcast_content)}")
                     
-                    # 验证 API 密钥
-                    if not st.secrets.get("NotebookLM_API_KEY"):
-                        st.error("❌ NotebookLM API 密钥未设置")
-                        return
-                        
-                    client = NotebookLMClient(
-                        st.secrets["NotebookLM_API_KEY"],
-                        webhook_url="http://localhost:5000/webhook"
-                    )
-                    
-                    # 准备请求数据
-                    resources = [
-                        {"content": content_data['paper_link'], "type": "website"}
-                    ]
-                    text = content_data['prompt_text']
-                    
-                    # 发送请求并获取request_id
-                    request_id = client.send_content(resources, text)
-                    
-                    if not request_id:
-                        st.error("❌ 发送音频生成请求失败")
-                        return
-                        
-                    # 发送成功，更新状态
-                    st.success("✅ 音频生成请求已发送！")
-                    st.info("⌛ 正在等待处理...")
-                    
-                    # 重置停止标志
-                    st.session_state.should_stop_check = False
-                    
-                    # 初始化状态
-                    st.session_state.request_id = request_id
-                    st.session_state.audio_status = {"status": 0}
-                    st.session_state.start_time = time.time()
-                    
-                    # 启动状态检查线程
-                    status_thread = threading.Thread(
-                        target=check_status,
-                        args=(request_id, client, st.session_state.status_queue)
-                    )
-                    status_thread.daemon = True
-                    status_thread.start()
-                    
-                    # 等待初始状态更新
-                    time.sleep(2)
-                    st.rerun()
+                    # 只有当content_data有效时继续处理
+                    if content_data is not None:
+                        # 验证 API 密钥
+                        if st.secrets.get("NotebookLM_API_KEY"):
+                            client = NotebookLMClient(
+                                st.secrets["NotebookLM_API_KEY"],
+                                webhook_url="http://localhost:5000/webhook"
+                            )
+                            
+                            # 准备请求数据
+                            resources = [
+                                {"content": content_data['paper_link'], "type": "website"}
+                            ]
+                            text = content_data['prompt_text']
+                            
+                            # 发送请求并获取request_id
+                            request_id = client.send_content(resources, text)
+                            
+                            if request_id:
+                                # 发送成功，更新状态
+                                st.success("✅ 音频生成请求已发送！")
+                                st.info("⌛ 正在等待处理...")
+                                
+                                # 重置停止标志
+                                st.session_state.should_stop_check = False
+                                
+                                # 初始化状态
+                                st.session_state.request_id = request_id
+                                st.session_state.audio_status = {"status": 0}
+                                st.session_state.start_time = time.time()
+                                
+                                # 启动状态检查线程
+                                status_thread = threading.Thread(
+                                    target=check_status,
+                                    args=(request_id, client, st.session_state.status_queue)
+                                )
+                                status_thread.daemon = True
+                                status_thread.start()
+                                
+                                # 等待初始状态更新
+                                time.sleep(2)
+                                st.rerun()
+                            else:
+                                st.error("❌ 发送音频生成请求失败")
+                        else:
+                            st.error("❌ NotebookLM API 密钥未设置")
                     
                 except json.JSONDecodeError as e:
                     st.error(f"❌ JSON解析失败: {str(e)}")
