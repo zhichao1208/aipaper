@@ -238,29 +238,90 @@ col1, col2 = st.columns([2, 1])
 with col1:
     # 用户输入区
     with st.container():
-        st.subheader("📚 输入研究主题")
-        topic = st.text_input(
-            "请输入主题:",
-            placeholder="例如：AI music, Quantum Computing...",
-            help="输入你感兴趣的研究主题，我们将为你找到相关的学术论文"
-        )
-
-    # 论文搜索和选择区
-    if st.button("🔍 查找相关论文", key="search_button"):
-        with st.spinner("正在搜索相关论文..."):
-            try:
-                find_papers_crew = AIPaperCrew().find_papers_crew()
-                paper_result = find_papers_crew.kickoff(inputs={"topic": topic})
-                
-                if paper_result:
-                    st.session_state.papers = paper_result
-                    st.success("✨ 找到相关论文！")
-                    with st.expander("📄 查看论文列表", expanded=True):
-                        st.markdown(paper_result)
-                else:
-                    st.error("❌ 未相关论文。")
-            except Exception as e:
-                st.error(f"❌ 搜索过程中出错: {str(e)}")
+        st.subheader("📚 输入研究主题或论文链接")
+        
+        # 创建两列用于并排显示输入框
+        input_col1, input_col2 = st.columns(2)
+        
+        with input_col1:
+            topic = st.text_input(
+                "输入研究主题:",
+                placeholder="例如：AI music, Quantum Computing...",
+                help="输入你感兴趣的研究主题，我们将为你找到相关的学术论文"
+            )
+            
+            if st.button("🔍 查找相关论文", key="search_button"):
+                with st.spinner("正在搜索相关论文..."):
+                    try:
+                        find_papers_crew = AIPaperCrew().find_papers_crew()
+                        paper_result = find_papers_crew.kickoff(inputs={"topic": topic})
+                        
+                        if paper_result:
+                            st.session_state.papers = paper_result
+                            st.success("✨ 找到相关论文！")
+                            with st.expander("📄 查看论文列表", expanded=True):
+                                st.markdown(paper_result)
+                        else:
+                            st.error("❌ 未找到相关论文。")
+                    except Exception as e:
+                        st.error(f"❌ 搜索过程中出错: {str(e)}")
+        
+        with input_col2:
+            paper_link = st.text_input(
+                "直接输入论文链接:",
+                placeholder="https://arxiv.org/abs/2312.12345",
+                help="直接输入论文链接，我们将为你生成播客内容"
+            )
+            
+            if st.button("📝 直接生成内容", key="generate_direct_button"):
+                with st.spinner("正在生成播客内容..."):
+                    try:
+                        # 使用论文链接生成内容
+                        podcast_inputs = {
+                            "papers_list": json.dumps({
+                                "title": "直接输入的论文",
+                                "link": paper_link,
+                                "content": "通过链接直接生成"
+                            })
+                        }
+                        generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
+                        generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
+                        
+                        if generate_podcast_content:
+                            st.session_state.podcast_content = generate_podcast_content
+                            st.success("✨ 播客内容生成成功！")
+                            
+                            # 显示生成的内容
+                            with st.expander("📝 查看生成的内容", expanded=True):
+                                try:
+                                    # 处理 CrewOutput 类型
+                                    if hasattr(generate_podcast_content, 'raw'):
+                                        raw_content = generate_podcast_content.raw
+                                        
+                                        # 如果是 JSON 字符串，尝试解析
+                                        if isinstance(raw_content, str):
+                                            # 移除可能的 JSON 代码块标记
+                                            json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+                                            content_data = json.loads(json_str)
+                                        else:
+                                            content_data = raw_content
+                                    else:
+                                        content_data = generate_podcast_content
+                                    
+                                    # 显示内容
+                                    st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
+                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
+                                    st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
+                                    
+                                    # 保存解析后的内容到 session_state
+                                    st.session_state.podcast_content = content_data
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ 内容处理错误: {str(e)}")
+                        else:
+                            st.error("❌ 生成播客内容失败。")
+                    except Exception as e:
+                        st.error(f"❌ 生成过程中出错: {str(e)}")
 
 with col2:
     # 处理状态和进度区
