@@ -25,7 +25,7 @@ write_task:
     from the selected paper HTML link.
     make sure the catch for podcast viewer.
   expected_output: >
-    provide title, description,  paper_link and prompt text for NLM in json format.
+    provide title, description,  paper_link and prompt_text for NLM in json format.
     add paper title, paper link, publish date and authors at the end of description.
     total English characters count should be less than 400.
-    add a prompt text, less than 100, short intro to podcast host, how should they talk about this paper.
+    add a prompt_text, less than 100, short intro to podcast host, how should they talk about this paper.
