@@ -1,6 +1,6 @@
-__import__('pysqlite3') # This is a workaround to fix the error "sqlite3 module is not found" on live streamlit.
+__import__('pysqlite3')
 import sys 
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3') # This is a workaround to fix the error "sqlite3 module is not found" on live streamlit.
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import streamlit as st
 from nlm_client import NotebookLMClient
@@ -8,7 +8,7 @@ from audio_handler import AudioHandler
 from podbean_uploader import PodbeanUploader
 from aipaper_agents import NewsroomCrew
 import openai
-import requests  # 添加  requests 库
+import requests
 from aipaper_crew import AIPaperCrew, PapersList, ChosenPaper, PodcastContent
 import json
 from cloud_storage import CloudStorage
@@ -21,31 +21,20 @@ import html
 from queue import Queue
 from typing import Optional, Dict, Any
 
-# 在导入部分之后，页面配置之前添加
 def parse_podbean_feed(feed_url: str) -> list:
-    """
-    解析 Podbean Feed 获取播客列表
-    
-    Args:
-        feed_url: Podbean feed URL
-        
-    Returns:
-        list: 播客列表
-    """
+    """解析 Podbean Feed 获取播客列表"""
     try:
         response = requests.get(feed_url)
         response.raise_for_status()
         
         # 使用正则表达式提取每个播客条目
         episodes = []
-        # 匹配 CDATA 内容和普通内容
         pattern = r'<item>.*?<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>.*?<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>.*?<pubDate>(.*?)</pubDate>.*?<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>.*?<itunes:duration>(.*?)</itunes:duration>.*?</item>'
         
         episode_matches = re.finditer(pattern, response.text, re.DOTALL)
         
         for match in episode_matches:
             try:
-                # 清理和解码 HTML 实体
                 title = html.unescape(match.group(1).strip())
                 link = html.unescape(match.group(2).strip())
                 date = datetime.strptime(match.group(3).strip(), '%a, %d %b %Y %H:%M:%S %z').strftime('%Y-%m-%d')
@@ -70,17 +59,8 @@ def parse_podbean_feed(feed_url: str) -> list:
         print(f"获取播客列表失败: {str(e)}")
         return []
 
-# 添加内容处理函数
 def normalize_podcast_content(content: dict) -> Optional[Dict[str, Any]]:
-    """
-    规范化播客内容，确保所有必需字段存在且格式正确
-    
-    Args:
-        content: 原始内容字典
-        
-    Returns:
-        Optional[Dict[str, Any]]: 处理后的内容，如果无效则返回None
-    """
+    """规范化播客内容，确保所有必需字段存在且格式正确"""
     try:
         # 创建新字典以避免修改原始数据
         normalized = content.copy()
@@ -103,15 +83,7 @@ def normalize_podcast_content(content: dict) -> Optional[Dict[str, Any]]:
         return None
 
 def generate_content_with_chatgpt(paper_link: str) -> Optional[Dict[str, Any]]:
-    """
-    使用ChatGPT直接生播客内容
-    
-    Args:
-        paper_link: 论文链接
-        
-    Returns:
-        Optional[Dict[str, Any]]: 生成的内容，如果失败返回None
-    """
+    """使用ChatGPT直接生成播客内容"""
     try:
         system_prompt = """你是一个专业的学术播客内容生成助手。请生成一个包含以下字段的JSON格式内容：
         {
@@ -290,7 +262,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 添加播客列表标题和展开选项
-with st.expander("🎧 最新播客列表", expanded=True):
+with st.expander("🎧 最新播���列表", expanded=True):
     feed_url = "https://feed.podbean.com/zhichao1208/feed.xml"
     episodes = parse_podbean_feed(feed_url)
     
@@ -383,7 +355,7 @@ with col1:
                             st.success("✨ 内容生成成功！")
                             
                             # 显示生成的内容
-                            with st.expander("📝 查看生成的内容", expanded=True):
+                            with st.expander("查看生成的内容", expanded=True):
                                 st.markdown(f"**标题**: {content['title']}")
                                 st.markdown(f"**描述**: {content['description']}")
                                 st.markdown(f"**提示文本**: {content['prompt_text']}")
@@ -425,7 +397,7 @@ with col2:
                                         
                                         # 如果是 JSON 字符串，尝试解析
                                         if isinstance(raw_content, str):
-                                            # 除可能的 JSON 代码块标记
+                                            # 除可的 JSON 代码块标记
                                             json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
                                             content_data = json.loads(json_str)
                                         else:
@@ -515,11 +487,34 @@ if 'podcast_content' in st.session_state:
                                 st.session_state.audio_status = {"status": 0}
                                 st.session_state.start_time = time.time()
                                 
+                                # 定义状态检查函数
+                                def check_status_thread():
+                                    """检查音频生成状态的后台任务"""
+                                    check_count = 0
+                                    max_checks = 30  # 最多检查30次
+                                    
+                                    while check_count < max_checks and not st.session_state.should_stop_check:
+                                        try:
+                                            status_data = client.check_status(request_id)
+                                            if status_data:
+                                                # 将状态放入队列
+                                                st.session_state.status_queue.put(status_data)
+                                                
+                                                # 如果处理完成或出错，结束检查
+                                                if status_data.get("audio_url") or status_data.get("error_message"):
+                                                    break
+                                                    
+                                        except Exception as e:
+                                            print(f"状态检查出错: {str(e)}")
+                                        
+                                        check_count += 1
+                                        time.sleep(20)  # 每20秒检查一次
+                                    
+                                    # 标记检查结束
+                                    st.session_state.status_queue.put(None)
+                                
                                 # 启动状态检查线程
-                                status_thread = threading.Thread(
-                                    target=check_status,
-                                    args=(request_id, client, st.session_state.status_queue)
-                                )
+                                status_thread = threading.Thread(target=check_status_thread)
                                 status_thread.daemon = True
                                 status_thread.start()
                                 
@@ -622,32 +617,6 @@ if 'podcast_content' in st.session_state:
                     not st.session_state.should_stop_check):
                     time.sleep(10)  # 每10秒刷新一次
                     st.rerun()
-
-# 添加状态检查函数
-def check_status(request_id: str, client: NotebookLMClient, status_queue: Queue):
-    """检查音频生成状态的后台任务"""
-    check_count = 0
-    max_checks = 30  # 最多检查30次
-    
-    while check_count < max_checks and not st.session_state.should_stop_check:
-        try:
-            status_data = client.check_status(request_id)
-            if status_data:
-                # 将状态放入队列
-                status_queue.put(status_data)
-                
-                # 如果处理完成或出错，结束检查
-                if status_data.get("audio_url") or status_data.get("error_message"):
-                    break
-                    
-        except Exception as e:
-            print(f"状态检查出错: {str(e)}")
-        
-        check_count += 1
-        time.sleep(20)  # 每20秒检查一次
-    
-    # 标记检查结束
-    status_queue.put(None)
 
 # 发布区域
 if 'audio_url' in st.session_state:
