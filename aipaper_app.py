@@ -484,6 +484,48 @@ if 'podcast_content' in st.session_state:
                                 while not st.session_state.status_queue.empty():
                                     st.session_state.status_queue.get()
                                 
+                                # 定义状态检查函数
+                                def check_status_thread():
+                                    check_count = 0
+                                    while not st.session_state.should_stop_check:
+                                        try:
+                                            check_count += 1
+                                            current_time = time.strftime("%H:%M:%S")
+                                            
+                                            # 检查音频状态
+                                            status_data = client.check_status(request_id)
+                                            
+                                            if status_data:
+                                                # 更新状态信息
+                                                new_status = {
+                                                    "status": status_data.get("status", 0),
+                                                    "check_count": check_count,
+                                                    "check_time": current_time,
+                                                    "last_status": f"状态码: {status_data.get('status', 0)}",
+                                                    "audio_url": status_data.get("audio_url"),
+                                                    "error_message": status_data.get("error_message")
+                                                }
+                                                
+                                                # 放入队列
+                                                st.session_state.status_queue.put(new_status)
+                                                
+                                                # 如果处理完成或出错，停止检查
+                                                if status_data.get("audio_url") or status_data.get("error_message"):
+                                                    st.session_state.should_stop_check = True
+                                                    break
+                                            
+                                        except Exception as e:
+                                            print(f"状态检查出错: {str(e)}")
+                                            st.session_state.status_queue.put({
+                                                "error_message": f"状态检查出错: {str(e)}",
+                                                "check_count": check_count
+                                            })
+                                        
+                                        time.sleep(5)  # 每5秒检查一次
+                                
+                                # 启动状态检查线程
+                                threading.Thread(target=check_status_thread, daemon=True).start()
+                                
                                 st.rerun()
                             else:
                                 st.error("❌ 发送音频生成请求失败")
@@ -505,7 +547,10 @@ if 'podcast_content' in st.session_state:
                 while not st.session_state.status_queue.empty():
                     new_status = st.session_state.status_queue.get_nowait()
                     if new_status is not None:
-                        st.session_state.audio_status.update(new_status)
+                        # 更新状态，保留现有字段
+                        current_status = st.session_state.audio_status.copy()
+                        current_status.update(new_status)
+                        st.session_state.audio_status = current_status
             except Exception as e:
                 st.error(f"状态更新出错: {str(e)}")
             
@@ -538,6 +583,10 @@ if 'podcast_content' in st.session_state:
                     st.progress(progress)
                     st.text(f"进度: {progress}%")
                 
+                # 显示最后一次状态信息
+                if status.get('last_status'):
+                    st.info(status['last_status'])
+                
                 # 显示错误信息
                 if status.get("error_message"):
                     st.error(f"错误: {status['error_message']}")
@@ -548,13 +597,11 @@ if 'podcast_content' in st.session_state:
                     st.audio(status["audio_url"])
                     st.session_state.audio_url = status["audio_url"]
                     st.markdown(f"[📥 下载音频]({status['audio_url']})")
-                    
-                    # 停止状态检查
                     st.session_state.should_stop_check = True
                 
                 # 自动刷新
                 if not st.session_state.should_stop_check:
-                    time.sleep(1)
+                    time.sleep(2)  # 降低刷新频率
                     st.rerun()
 
 # 发布区域
