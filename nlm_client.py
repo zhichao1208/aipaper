@@ -1,6 +1,7 @@
 import requests
 import json
 import logging
+import re
 
 class NotebookLMClient:
     def __init__(self, api_key: str, webhook_url: str):
@@ -12,15 +13,47 @@ class NotebookLMClient:
             
         self.api_key = api_key
         self.webhook_url = webhook_url
-        self.base_url = "https://api.notebooklm.com/v1"
+        self.base_url = "https://api.autocontentapi.com"
         
         # 设置日志
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger("NotebookLMClient")
         
+    def _convert_arxiv_url(self, url: str) -> list:
+        """
+        将arXiv URL转换为PDF和HTML URL
+        
+        Args:
+            url: arXiv论文URL
+            
+        Returns:
+            list: 包含PDF和HTML URL的资源列表
+        """
+        try:
+            # 从URL中提取arXiv ID
+            match = re.search(r'arxiv.org/abs/(\d+\.\d+)', url)
+            if not match:
+                self.logger.error(f"无法从URL中提取arXiv ID: {url}")
+                return [{"content": url, "type": "website"}]
+                
+            arxiv_id = match.group(1)
+            
+            # 构建PDF和HTML URL
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+            html_url = f"https://arxiv.org/html/{arxiv_id}"
+            
+            return [
+                {"content": pdf_url, "type": "website"},
+                {"content": html_url, "type": "website"}
+            ]
+            
+        except Exception as e:
+            self.logger.error(f"转换arXiv URL时出错: {str(e)}")
+            return [{"content": url, "type": "website"}]
+        
     def send_content(self, resources: list, text: str) -> str:
         """
-        发送内容到 NotebookLM API
+        发送内容到 AutoContent API
         
         Args:
             resources: 资源列表
@@ -36,8 +69,17 @@ class NotebookLMClient:
             if not text:
                 raise ValueError("提示文本不能为空")
                 
-            self.logger.info("准备发送请求到 NotebookLM API")
-            self.logger.info(f"Resources: {json.dumps(resources, ensure_ascii=False)}")
+            self.logger.info("准备发送请求到 AutoContent API")
+            
+            # 处理资源URL
+            processed_resources = []
+            for resource in resources:
+                if "arxiv.org/abs/" in resource["content"]:
+                    processed_resources.extend(self._convert_arxiv_url(resource["content"]))
+                else:
+                    processed_resources.append(resource)
+            
+            self.logger.info(f"处理后的资源: {json.dumps(processed_resources, ensure_ascii=False)}")
             self.logger.info(f"Text: {text}")
             
             headers = {
@@ -46,20 +88,23 @@ class NotebookLMClient:
             }
             
             payload = {
-                "resources": resources,
+                "resources": processed_resources,
                 "text": text,
-                "webhook_url": self.webhook_url
+                "outputType": "audio",
+                "webhook": {
+                    "url": self.webhook_url
+                }
             }
             
-            self.logger.info(f"发送请求到: {self.base_url}/content")
+            self.logger.info(f"发送请求到: {self.base_url}/content/create")
             self.logger.debug(f"Headers: {headers}")
             self.logger.debug(f"Payload: {json.dumps(payload, ensure_ascii=False)}")
             
             response = requests.post(
-                f"{self.base_url}/content",
+                f"{self.base_url}/content/create",
                 headers=headers,
                 json=payload,
-                timeout=30  # 添加超时设置
+                timeout=30
             )
             
             # 记录响应
@@ -75,12 +120,13 @@ class NotebookLMClient:
                 self.logger.info(f"成功获取请求ID: {request_id}")
                 return request_id
             else:
-                self.logger.error("响应中没有request_id")
+                error_message = data.get("error_message")
+                self.logger.error(f"响应中没有request_id，错误信息: {error_message}")
                 return None
                 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"请求错误: {str(e)}")
-            if hasattr(e.response, 'text'):
+            if hasattr(e, 'response') and e.response:
                 self.logger.error(f"错误响应: {e.response.text}")
             return None
         except Exception as e:
