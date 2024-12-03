@@ -10,6 +10,7 @@ import pydub
 import pyaudio
 import json
 import os
+import queue
 from dotenv import load_dotenv
 
 # 加载.env文件
@@ -31,6 +32,8 @@ if 'podcast_content' not in st.session_state:
     st.session_state.podcast_content = None
 if 'request_id' not in st.session_state:
     st.session_state.request_id = None
+if 'status_queue' not in st.session_state:
+    st.session_state.status_queue = queue.Queue()
 
 # 页面标题和说明
 st.title("🎙️ AI Paper Podcast Generator")
@@ -103,18 +106,33 @@ with col2:
             else:
                 st.error("生成内容失败，请检查论文链接是否正确。")
 
+def check_audio_status(request_id):
+    """检查音频生成状态"""
+    try:
+        status = client.check_status(request_id)
+        if status:
+            st.session_state.status_queue.put(status)
+        return status
+    except Exception as e:
+        st.error(f"检查状态时出错: {str(e)}")
+        return None
+
 # 如果存在request_id，显示音频状态
 if st.session_state.request_id:
     st.markdown("---")
     st.subheader("🎵 音频生成状态")
     if st.button("检查音频状态", key="check_status"):
         with st.spinner("正在检查音频生成状态..."):
-            status = client.check_status(st.session_state.request_id)
+            status = check_audio_status(st.session_state.request_id)
             if status:
                 st.write("当前状态:", status.get("status", "未知"))
                 if status.get("audio_url"):
                     st.success("🎉 音频生成完成！")
                     st.audio(status["audio_url"])
+                    
+                    # 清空状态队列
+                    while not st.session_state.status_queue.empty():
+                        st.session_state.status_queue.get()
             else:
                 st.warning("无法获取状态信息，请稍后再试。")
 
