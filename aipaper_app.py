@@ -428,8 +428,8 @@ if 'podcast_content' in st.session_state:
                                     status_thread.daemon = True
                                     status_thread.start()
                                     
-                                    # 添加状态自动刷新
-                                    st.experimental_rerun()
+                                    # 使用新的 rerun 方法
+                                    st.rerun()
                 
                 except json.JSONDecodeError as e:
                     st.error(f"❌ 播客内容 JSON 解析失败: {str(e)}")
