@@ -85,10 +85,10 @@ def test_workflow():
     # 测试数据
     test_content = {
         "raw": '''{
-            "title": "Navigating the AI Frontier: Insights from Leading Experts",
-            "description": "Join us as we engage in a compelling dialogue about the future of AI, drawing insights from thousands of AI experts. Explore predictions, risks, and transformative opportunities in this evolving field. This enlightening discussion will shape your understanding of AI's impact on society. Paper Title: Thousands of AI Authors on the Future of AI; Paper Link: http://arxiv.org/abs/2401.02843; Publish Date: January 2024; Authors: Katja Grace et al.",
-            "paper_link": "http://arxiv.org/abs/2401.02843",
-            "prompt_text": "Welcome to today's episode where we decode the future of AI with insights from the leading voices in the field. This enlightening discussion promises to broaden your perspective on the potential paths AI could take!"
+            "title": "Unlocking Agent S: The Future of Human-Computer Interaction",
+            "description": "Join us as we explore 'Agent S,' an innovative framework that revolutionizes how we interact with computers. Discover the groundbreaking methods behind this research, designed to automate complex tasks and enhance safety and accessibility. We'll discuss the implications of Agent S for AI's future and its potential to reshape our digital interactions. Get ready to dive deep into the mechanism that could transform everyday computing! Paper Title: Agent S: An Open Agentic Framework that Uses Computers Like a Human; Authors: Saaket Agashe, Jiuzhou Han, Shuyu Gan, Jiachen Yang, Ang Li, Xin Eric Wang; Published Date: October 10, 2024; Link: https://arxiv.org/abs/2410.08164",
+            "paper_link": "https://arxiv.org/abs/2410.08164",
+            "prompt_text": "In today's episode, we delve into a fascinating new paper that redefines our interaction with technology. Highlight the key innovations and their potential impact!"
         }'''
     }
     

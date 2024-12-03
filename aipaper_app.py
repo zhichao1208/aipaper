@@ -117,6 +117,8 @@ st.markdown("""
 # 初始化 session state
 if 'processing_complete' not in st.session_state:
     st.session_state.processing_complete = False
+if 'should_stop_check' not in st.session_state:
+    st.session_state.should_stop_check = False
 
 # 侧边栏配置
 with st.sidebar:
@@ -390,10 +392,13 @@ if 'podcast_content' in st.session_state:
                                 if not request_id:
                                     st.error("❌ 发送音频生成请求失败。")
                                 else:
+                                    # 重置停止标志
+                                    st.session_state.should_stop_check = False
+                                    
+                                    # 初始化状态
                                     st.session_state.request_id = request_id
-                                    st.session_state.audio_status = {"status": 0}  # 初始状态为0
-                                    st.session_state.start_time = time.time()  # 记录开始时间
-                                    st.success("✨ 音频生成请求已发送！")
+                                    st.session_state.audio_status = {"status": 0}
+                                    st.session_state.start_time = time.time()
                                     
                                     # 修改状态检查部分
                                     def check_status(request_id: str, client: NotebookLMClient, queue: Queue):
