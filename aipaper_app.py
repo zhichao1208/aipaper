@@ -582,7 +582,15 @@ if 'podcast_content' in st.session_state:
             
             # 显示原始状态信息
             st.markdown("### 原始状态返回:")
-            st.code(json.dumps(status_data, indent=2) if status_data else "等待状态更新...", language="json")
+            if 'request_id' in st.session_state:
+                try:
+                    status_data = client.check_status(st.session_state.request_id)
+                    st.code(json.dumps(status_data, indent=2) if status_data else "等待状态更新...", language="json")
+                except Exception as e:
+                    st.error(f"获取状态信息失败: {str(e)}")
+                    st.code("等待状态更新...", language="json")
+            else:
+                st.code("等待状态更新...", language="json")
             
             # 显示检查信息
             col1, col2 = st.columns(2)
