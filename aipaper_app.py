@@ -39,7 +39,7 @@ def parse_podbean_feed(feed_url: str) -> list:
         response = requests.get(feed_url)
         response.raise_for_status()
         
-        # 使用正则表达式提��个播客条目
+        # 使用正则表达式提个播客条目
         episodes = []
         pattern = r'<item>.*?<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>.*?<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>.*?<pubDate>(.*?)</pubDate>.*?<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>.*?<itunes:duration>(.*?)</itunes:duration>.*?</item>'
         
@@ -204,20 +204,19 @@ with st.sidebar:
     
     # API 状态检查
     st.subheader("API 状态")
-    api_status = {}
     
-    # 安全地检查每个 API 密钥
-    def check_secret(key):
+    # 安全地检查配置（同时检查 secrets 和环境变量）
+    def check_config(key):
         try:
-            return bool(st.secrets[key])
-        except KeyError:
-            return False
+            return bool(st.secrets.get(key)) or bool(os.getenv(key))
+        except Exception:
+            return bool(os.getenv(key))
     
     api_status = {
-        "OpenAI": check_secret("OPENAI_API_KEY"),
-        "NotebookLM": check_secret("NotebookLM_API_KEY"),
-        "Podbean": check_secret("PODBEAN_CLIENT_ID"),
-        "Cloudinary": check_secret("CLOUDINARY_CLOUD_NAME")
+        "OpenAI": check_config("OPENAI_API_KEY"),
+        "NotebookLM": check_config("NotebookLM_API_KEY"),
+        "Podbean": check_config("PODBEAN_CLIENT_ID"),
+        "Cloudinary": check_config("CLOUDINARY_CLOUD_NAME")
     }
     
     for api, status in api_status.items():
@@ -617,7 +616,7 @@ if 'podcast_content' in st.session_state:
                 with col1:
                     st.text(f"检查次数: {status.get('check_count', 0)}")
                     check_time = status.get('check_time', '未知')
-                    st.text(f"最后检查: {check_time}")
+                    st.text(f"最后���查: {check_time}")
                 
                 with col2:
                     if 'start_time' in status:
@@ -792,7 +791,7 @@ if 'audio_url' in st.session_state:
                     st.write("临时文件已清理")
                     
             except Exception as e:
-                st.error(f"❌ 发布过程中出错: {str(e)}")
+                st.error(f"❌ 发布���程中出错: {str(e)}")
 
 # 页脚
 st.markdown("---")
