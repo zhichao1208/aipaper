@@ -2,6 +2,7 @@ import requests
 import json
 import logging
 import re
+from typing import List, Dict
 
 class NotebookLMClient:
     def __init__(self, api_key: str, webhook_url: str):
@@ -103,7 +104,7 @@ class NotebookLMClient:
             response = requests.post(
                 f"{self.base_url}/content/create",
                 headers=headers,
-                json=payload,
+                data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
                 timeout=30
             )
             

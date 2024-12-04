@@ -197,6 +197,25 @@ if 'should_stop_check' not in st.session_state:
 if 'status_queue' not in st.session_state:
     st.session_state.status_queue = Queue()
 
+# 初始化 session state 变量
+if 'nlm_client' not in st.session_state:
+    st.session_state.nlm_client = NotebookLMClient()
+
+if 'should_stop_check' not in st.session_state:
+    st.session_state.should_stop_check = False
+
+if 'status_thread' not in st.session_state:
+    st.session_state.status_thread = None
+
+if 'current_request_id' not in st.session_state:
+    st.session_state.current_request_id = None
+
+if 'check_count' not in st.session_state:
+    st.session_state.check_count = 0
+
+if 'last_check_time' not in st.session_state:
+    st.session_state.last_check_time = None
+
 # 侧边栏配置
 with st.sidebar:
     st.image("https://pbcdn1.podbean.com/imglogo/image-logo/19758603/42416134-1731263380633-a03743bbd1f1b.jpg", width=100)
@@ -616,7 +635,7 @@ if 'podcast_content' in st.session_state:
                 with col1:
                     st.text(f"检查次数: {status.get('check_count', 0)}")
                     check_time = status.get('check_time', '未知')
-                    st.text(f"最后���查: {check_time}")
+                    st.text(f"最后查: {check_time}")
                 
                 with col2:
                     if 'start_time' in status:
@@ -791,7 +810,7 @@ if 'audio_url' in st.session_state:
                     st.write("临时文件已清理")
                     
             except Exception as e:
-                st.error(f"❌ 发布���程中出错: {str(e)}")
+                st.error(f"❌ 发布程中出错: {str(e)}")
 
 # 页脚
 st.markdown("---")
@@ -803,3 +822,49 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+def check_status_thread():
+    """状态检查线程函数"""
+    try:
+        while not st.session_state.should_stop_check:
+            if st.session_state.current_request_id:
+                check_generation_status(st.session_state.current_request_id)
+            time.sleep(30)  # 每30秒检查一次
+    except Exception as e:
+        print(f"状态检查线程出错: {str(e)}")
+    finally:
+        print("状态检查线程结束")
+
+def start_status_check():
+    """启动状态检查"""
+    if st.session_state.status_thread is None or not st.session_state.status_thread.is_alive():
+        st.session_state.should_stop_check = False
+        st.session_state.status_thread = threading.Thread(target=check_status_thread)
+        st.session_state.status_thread.daemon = True
+        st.session_state.status_thread.start()
+
+def stop_status_check():
+    """停止状态检查"""
+    st.session_state.should_stop_check = True
+    if st.session_state.status_thread and st.session_state.status_thread.is_alive():
+        st.session_state.status_thread.join(timeout=1)
+    st.session_state.status_thread = None
+    st.session_state.current_request_id = None
+
+def check_generation_status(request_id: str):
+    """检查生成状态"""
+    try:
+        st.session_state.check_count += 1
+        st.session_state.last_check_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # 获取状态
+        status = st.session_state.nlm_client.check_status(request_id)
+        if status:
+            st.session_state.status_queue.put({
+                "request_id": request_id,
+                "status": status,
+                "check_count": st.session_state.check_count,
+                "check_time": st.session_state.last_check_time
+            })
+    except Exception as e:
+        print(f"检查状态时出错: {str(e)}")
