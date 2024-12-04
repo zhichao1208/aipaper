@@ -39,7 +39,7 @@ class NotebookLMClient:
             arxiv_id = match.group(1)
             
             # 构建PDF和HTML URL
-            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
             html_url = f"https://arxiv.org/html/{arxiv_id}"
             
             return [

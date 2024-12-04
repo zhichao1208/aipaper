@@ -1,12 +1,12 @@
 crewai
 crewai-tools
-pydub
 requests>=2.31.0
 pydantic
 streamlit 
 openai
 soundfile
-ffmpeg
+scipy
+numpy
 pysqlite3-binary
 cloudinary>=1.36.0
 python-dotenv>=1.0.0
