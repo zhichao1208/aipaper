@@ -560,6 +560,12 @@ if 'podcast_content' in st.session_state:
         # 显示状态更新
         if 'audio_status' in st.session_state:
             try:
+                # 初始化 NotebookLM 客户端
+                client = NotebookLMClient(
+                    st.secrets["NotebookLM_API_KEY"],
+                    webhook_url="http://localhost:5000/webhook"
+                )
+                
                 # 检查状态队列是否有更新
                 while not st.session_state.status_queue.empty():
                     new_status = st.session_state.status_queue.get_nowait()
