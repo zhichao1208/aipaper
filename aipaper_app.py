@@ -500,7 +500,7 @@ if 'podcast_content' in st.session_state:
                                 while not st.session_state.status_queue.empty():
                                     st.session_state.status_queue.get()
                                 
-                                # 定义状态检查函数
+                                # 定义状态检查��数
                                 def check_status_thread():
                                     check_count = 0
                                     while not st.session_state.should_stop_check:
@@ -589,9 +589,19 @@ if 'podcast_content' in st.session_state:
             # 显示原始状态信息
             st.markdown("### 原始状态返回:")
             if 'request_id' in st.session_state:
+                st.text(f"Request ID: {st.session_state.request_id}")
                 try:
                     status_data = client.check_status(st.session_state.request_id)
-                    st.code(json.dumps(status_data, indent=2) if status_data else "等待状态更新...", language="json")
+                    if status_data:
+                        # 清理 JSON 字符串中的控制字符
+                        cleaned_data = {
+                            k: str(v).replace('\n', ' ').replace('\r', '') 
+                            if isinstance(v, str) else v 
+                            for k, v in status_data.items()
+                        }
+                        st.code(json.dumps(cleaned_data, indent=2, ensure_ascii=False), language="json")
+                    else:
+                        st.code("等待状态更新...", language="json")
                 except Exception as e:
                     st.error(f"获取状态信息失败: {str(e)}")
                     st.code("等待状态更新...", language="json")
