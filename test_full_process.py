@@ -71,6 +71,8 @@ def test_full_process(request_id=None):
                 print(f"当前状态: {status}%")
                 print("\n原始状态返回:")
                 print(json.dumps(status_data, indent=2, ensure_ascii=False))
+                print(request_id)
+
                 
                 if status_data.get("audio_url"):
                     audio_url = status_data["audio_url"]
