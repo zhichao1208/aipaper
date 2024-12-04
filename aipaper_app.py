@@ -39,7 +39,7 @@ def parse_podbean_feed(feed_url: str) -> list:
         response = requests.get(feed_url)
         response.raise_for_status()
         
-        # 使用正则表达式提每个播客条目
+        # 使用正则表达式提��个播客条目
         episodes = []
         pattern = r'<item>.*?<title>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</title>.*?<link>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</link>.*?<pubDate>(.*?)</pubDate>.*?<description>(?:<!\[CDATA\[)?(.*?)(?:\]\]>)?</description>.*?<itunes:duration>(.*?)</itunes:duration>.*?</item>'
         
@@ -199,16 +199,25 @@ if 'status_queue' not in st.session_state:
 
 # 侧边栏配置
 with st.sidebar:
-    st.image("https://img.icons8.com/color/96/000000/podcast.png", width=100)
+    st.image("https://pbcdn1.podbean.com/imglogo/image-logo/19758603/42416134-1731263380633-a03743bbd1f1b.jpg", width=100)
     st.title("⚙️ 配置")
     
     # API 状态检查
     st.subheader("API 状态")
+    api_status = {}
+    
+    # 安全地检查每个 API 密钥
+    def check_secret(key):
+        try:
+            return bool(st.secrets[key])
+        except KeyError:
+            return False
+    
     api_status = {
-        "OpenAI": bool(st.secrets["OPENAI_API_KEY"]),
-        "NotebookLM": bool(st.secrets["NotebookLM_API_KEY"]),
-        "Podbean": bool(st.secrets["PODBEAN_CLIENT_ID"]),
-        "Cloudinary": bool(st.secrets["CLOUDINARY_CLOUD_NAME"])
+        "OpenAI": check_secret("OPENAI_API_KEY"),
+        "NotebookLM": check_secret("NotebookLM_API_KEY"),
+        "Podbean": check_secret("PODBEAN_CLIENT_ID"),
+        "Cloudinary": check_secret("CLOUDINARY_CLOUD_NAME")
     }
     
     for api, status in api_status.items():
