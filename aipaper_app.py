@@ -500,7 +500,7 @@ if 'podcast_content' in st.session_state:
                                 while not st.session_state.status_queue.empty():
                                     st.session_state.status_queue.get()
                                 
-                                # 定义状态检查��数
+                                # 定义状态检查数
                                 def check_status_thread():
                                     check_count = 0
                                     while not st.session_state.should_stop_check:
@@ -566,145 +566,150 @@ if 'podcast_content' in st.session_state:
                     webhook_url="http://localhost:5000/webhook"
                 )
                 
-                # 检查状态队列是否有更新
-                while not st.session_state.status_queue.empty():
-                    new_status = st.session_state.status_queue.get_nowait()
-                    if new_status is not None:
-                        # 更新状态，保留现有字段
-                        current_status = st.session_state.audio_status.copy()
-                        current_status.update(new_status)
-                        st.session_state.audio_status = current_status
-                        print(f"状态已更新: {current_status}")  # 调试输出
-            except Exception as e:
-                st.error(f"状态更新出错: {str(e)}")
-            
-            # 显示当前状态
-            status = st.session_state.audio_status
-            current_status = status.get("status", "unknown")
-            
-            # 显示状态文本
-            status_text = status_mapping.get(current_status, status_mapping["unknown"])
-            st.markdown(f"### 当前状态: {status_text}")
-            
-            # 显示原始状态信息
-            st.markdown("### 原始状态返回:")
-            if 'request_id' in st.session_state:
-                st.text(f"Request ID: {st.session_state.request_id}")
-                try:
+                # 获取最新状态
+                if 'request_id' in st.session_state:
                     status_data = client.check_status(st.session_state.request_id)
                     if status_data:
-                        # 清理 JSON 字符串中的控制字符
-                        cleaned_data = {
-                            k: str(v).replace('\n', ' ').replace('\r', '') 
-                            if isinstance(v, str) else v 
-                            for k, v in status_data.items()
+                        # 更新状态信息
+                        new_status = {
+                            "status": status_data.get("status", 0),
+                            "check_count": st.session_state.audio_status.get("check_count", 0) + 1,
+                            "check_time": time.strftime("%H:%M:%S"),
+                            "last_status": f"状态码: {status_data.get('status', 0)}",
+                            "audio_url": status_data.get("audio_url"),
+                            "error_message": status_data.get("error_message")
                         }
-                        st.code(json.dumps(cleaned_data, indent=2, ensure_ascii=False), language="json")
-                    else:
-                        st.code("等待状态更新...", language="json")
-                except Exception as e:
-                    st.error(f"获取状态信息失败: {str(e)}")
+                        st.session_state.audio_status.update(new_status)
+                
+                # 显示当前状态
+                status = st.session_state.audio_status
+                current_status = status.get("status", "unknown")
+                
+                # 显示状态文本
+                status_text = status_mapping.get(current_status, status_mapping["unknown"])
+                st.markdown(f"### 当前状态: {status_text}")
+                
+                # 显示原始状态信息
+                st.markdown("### 原始状态返回:")
+                st.text(f"Request ID: {st.session_state.request_id}")
+                if status_data:
+                    # 清理 JSON 字符串中的控制字符
+                    cleaned_data = {
+                        k: str(v).replace('\n', ' ').replace('\r', '') 
+                        if isinstance(v, str) else v 
+                        for k, v in status_data.items()
+                    }
+                    st.code(json.dumps(cleaned_data, indent=2, ensure_ascii=False), language="json")
+                else:
                     st.code("等待状态更新...", language="json")
-            else:
-                st.code("等待状态更新...", language="json")
-            
-            # 显示检查信息
-            col1, col2 = st.columns(2)
-            with col1:
-                st.text(f"检查次数: {status.get('check_count', 0)}")
-                check_time = status.get('check_time', '未知')
-                st.text(f"最后检查: {check_time}")
-            
-            with col2:
-                if 'start_time' in status:
-                    elapsed_time = int(time.time() - status['start_time'])
-                    minutes = elapsed_time // 60
-                    seconds = elapsed_time % 60
-                    st.text(f"处理时间: {minutes}分{seconds}秒")
-            
-            # 显示进度条
-            if isinstance(current_status, (int, float)):
-                progress = min(int(current_status), 100)
-                st.progress(progress / 100)  # Streamlit进度条需要0-1之间的值
-                st.text(f"进度: {progress}%")
-            
-            # 显示最后一次状态信息
-            if status.get('last_status'):
-                st.info(status['last_status'])
-            
-            # 显示错误信息
-            if status.get("error_message"):
-                st.error(f"错误: {status['error_message']}")
-            
-            # 显示音频
-            if status.get("audio_url"):
-                st.success("✨ 音频生成完成！")
-                st.audio(status["audio_url"])
-                st.session_state.audio_url = status["audio_url"]
                 
-                try:
-                    # 下载并转换音频
-                    temp_wav = "temp_audio.wav"
-                    output_mp3 = "podcast_audio.mp3"
+                # 显示检查信息
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.text(f"检查次数: {status.get('check_count', 0)}")
+                    check_time = status.get('check_time', '未知')
+                    st.text(f"最后检查: {check_time}")
+                
+                with col2:
+                    if 'start_time' in status:
+                        elapsed_time = int(time.time() - status['start_time'])
+                        minutes = elapsed_time // 60
+                        seconds = elapsed_time % 60
+                        st.text(f"处理时间: {minutes}分{seconds}秒")
+                
+                # 显示进度条
+                if isinstance(current_status, (int, float)):
+                    progress = min(int(current_status), 100)
+                    st.progress(progress / 100)
+                    st.text(f"进度: {progress}%")
+                
+                # 显示最后一次状态信息
+                if status.get('last_status'):
+                    st.info(status['last_status'])
+                
+                # 显示错误信息
+                if status.get("error_message"):
+                    st.error(f"错误: {status['error_message']}")
+                
+                # 处理音频生成完成的情况
+                if status.get("audio_url"):
+                    st.success("✨ 音频生成完成！")
+                    st.audio(status["audio_url"])
                     
-                    audio_handler = AudioHandler()
-                    if audio_handler.download_audio(status["audio_url"], temp_wav):
-                        if audio_handler.convert_wav_to_mp3(temp_wav, output_mp3):
-                            # 上传到 Podbean
-                            podbean_client = PodbeanUploader(
-                                st.secrets["PODBEAN_CLIENT_ID"],
-                                st.secrets["PODBEAN_CLIENT_SECRET"]
-                            )
-                            
-                            # 获取上传授权
-                            upload_auth = podbean_client.authorize_file_upload(
-                                "podcast_audio.mp3",
-                                output_mp3
-                            )
-                            
-                            if upload_auth:
-                                if podbean_client.upload_file_to_presigned_url(
-                                    upload_auth["presigned_url"],
-                                    output_mp3
-                                ):
-                                    # 发布播客
-                                    description = st.session_state.podcast_content["description"][:490]
-                                    episode_data = podbean_client.publish_episode(
-                                        title=st.session_state.podcast_content["title"],
-                                        content=description,
-                                        file_key=upload_auth["file_key"]
-                                    )
-                                    
-                                    if episode_data:
-                                        st.success("✨ 播客发布成功！")
-                                        st.markdown(f"[🎙️ 收听播客]({episode_data.get('episode_url')})")
-                                    else:
-                                        st.error("❌ 播客发布失败")
-                                else:
-                                    st.error("❌ 文件上传失败")
-                            else:
-                                st.error("❌ 获取 Podbean 上传授权失败")
-                        else:
-                            st.error("❌ 音频格式转换失败")
-                    else:
-                        st.error("❌ 音频下载失败")
+                    try:
+                        # 下载并转换音频
+                        temp_wav = "temp_audio.wav"
+                        output_mp3 = "podcast_audio.mp3"
                         
-                except Exception as e:
-                    st.error(f"❌ 处理过程出错: {str(e)}")
+                        audio_handler = AudioHandler()
+                        if audio_handler.download_audio(status["audio_url"], temp_wav):
+                            st.info("✓ 音频下载完成，正在转换格式...")
+                            if audio_handler.convert_wav_to_mp3(temp_wav, output_mp3):
+                                st.info("✓ 音频格式转换完成，正在上传到播客平台...")
+                                
+                                # 上传到 Podbean
+                                podbean_client = PodbeanUploader(
+                                    st.secrets["PODBEAN_CLIENT_ID"],
+                                    st.secrets["PODBEAN_CLIENT_SECRET"]
+                                )
+                                
+                                # 获取上传授权
+                                upload_auth = podbean_client.authorize_file_upload(
+                                    "podcast_audio.mp3",
+                                    output_mp3
+                                )
+                                
+                                if upload_auth:
+                                    if podbean_client.upload_file_to_presigned_url(
+                                        upload_auth["presigned_url"],
+                                        output_mp3
+                                    ):
+                                        st.info("✓ 文件上传成功，正在发布播客...")
+                                        
+                                        # 发布播客
+                                        description = st.session_state.podcast_content["description"][:490]
+                                        episode_data = podbean_client.publish_episode(
+                                            title=st.session_state.podcast_content["title"],
+                                            content=description,
+                                            file_key=upload_auth["file_key"]
+                                        )
+                                        
+                                        if episode_data:
+                                            st.success("✨ 播客发布成功！")
+                                            st.markdown(f"[🎙️ 收听播客]({episode_data.get('episode_url')})")
+                                        else:
+                                            st.error("❌ 播客发布失败")
+                                    else:
+                                        st.error("❌ 文件上传失败")
+                                else:
+                                    st.error("❌ 获取 Podbean 上传授权失败")
+                            else:
+                                st.error("❌ 音频格式转换失败")
+                        else:
+                            st.error("❌ 音频下载失败")
+                            
+                    except Exception as e:
+                        st.error(f"❌ 处理过程出错: {str(e)}")
+                        
+                    finally:
+                        # 清理临时文件
+                        for temp_file in [temp_wav, output_mp3]:
+                            if os.path.exists(temp_file):
+                                os.remove(temp_file)
                     
-                finally:
-                    # 清理临时文件
-                    for temp_file in [temp_wav, output_mp3]:
-                        if os.path.exists(temp_file):
-                            os.remove(temp_file)
+                    st.markdown(f"[📥 下载音频]({status['audio_url']})")
+                    st.session_state.should_stop_check = True
                 
-                st.markdown(f"[📥 下载音频]({status['audio_url']})")
-                st.session_state.should_stop_check = True
-            
-            # 自动刷新
-            if not st.session_state.should_stop_check:
-                time.sleep(2)  # 降低刷新频率
-                st.rerun()
+                # 自动刷新
+                if not st.session_state.should_stop_check:
+                    time.sleep(2)
+                    st.rerun()
+                    
+            except Exception as e:
+                st.error(f"状态更新出错: {str(e)}")
+                if not st.session_state.should_stop_check:
+                    time.sleep(2)
+                    st.rerun()
 
 # 发布区域
 if 'audio_url' in st.session_state:
