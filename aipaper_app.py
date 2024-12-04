@@ -207,7 +207,7 @@ with st.sidebar:
     api_status = {
         "OpenAI": bool(st.secrets["OPENAI_API_KEY"]),
         "NotebookLM": bool(st.secrets["NotebookLM_API_KEY"]),
-        "Podbean": bool(st.secrets["podbean_client_id"]),
+        "Podbean": bool(st.secrets["PODBEAN_CLIENT_ID"]),
         "Cloudinary": bool(st.secrets["CLOUDINARY_CLOUD_NAME"])
     }
     
@@ -702,13 +702,13 @@ if 'podcast_content' in st.session_state:
                 
                 # 自动刷新
                 if not st.session_state.should_stop_check:
-                    time.sleep(2)
+                    time.sleep(30)  # 每30秒检查一次
                     st.rerun()
                     
             except Exception as e:
                 st.error(f"状态更新出错: {str(e)}")
                 if not st.session_state.should_stop_check:
-                    time.sleep(2)
+                    time.sleep(30)  # 每30秒检查一次
                     st.rerun()
 
 # 发布区域
@@ -725,8 +725,8 @@ if 'audio_url' in st.session_state:
                 )
                 
                 podbean_client = PodbeanUploader(
-                    st.secrets["podbean_client_id"],
-                    st.secrets["podbean_client_secret"]
+                    st.secrets["PODBEAN_CLIENT_ID"],
+                    st.secrets["PODBEAN_CLIENT_SECRET"]
                 )
                 
                 # 下载音频
