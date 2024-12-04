@@ -199,7 +199,9 @@ if 'status_queue' not in st.session_state:
 
 # 初始化 session state 变量
 if 'nlm_client' not in st.session_state:
-    st.session_state.nlm_client = NotebookLMClient()
+    api_key = os.getenv("NotebookLM_API_KEY")
+    webhook_url = "http://localhost:5000/webhook"  # 本地webhook服务器地址
+    st.session_state.nlm_client = NotebookLMClient(api_key=api_key, webhook_url=webhook_url)
 
 if 'should_stop_check' not in st.session_state:
     st.session_state.should_stop_check = False
