@@ -384,28 +384,29 @@ with st.container():
                                         st.session_state.current_request_id = request_id
                                         st.session_state.should_stop_check = False
                                         
-                                        # 显示请求ID和原始状态
+                                        # 显示请求ID
+                                        st.markdown("### 请求信息")
                                         st.code(f"Request ID: {request_id}")
                                         
                                         # 显示 JinaReader 状态
-                                        with st.expander("📊 JinaReader 状态", expanded=True):
-                                            st.info("正在从论文获取内容...")
-                                            jina_url = f"https://r.jina.ai/{content_data['paper_link']}"
-                                            st.code(f"JinaReader URL: {jina_url}")
+                                        st.markdown("### JinaReader 状态")
+                                        st.info("正在从论文获取内容...")
+                                        jina_url = f"https://r.jina.ai/{content_data['paper_link']}"
+                                        st.code(f"JinaReader URL: {jina_url}")
                                         
                                         # 显示原始状态数据
-                                        with st.expander("📊 原始状态数据", expanded=True):
-                                            initial_status = {
-                                                "id": request_id,
-                                                "status": 0,
-                                                "updated_on": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                                "request_json": {
-                                                    "resources": resources,
-                                                    "text": text,
-                                                    "outputType": "audio"
-                                                }
+                                        st.markdown("### 初始状态")
+                                        initial_status = {
+                                            "id": request_id,
+                                            "status": 0,
+                                            "updated_on": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                            "request_json": {
+                                                "resources": resources,
+                                                "text": text,
+                                                "outputType": "audio"
                                             }
-                                            st.code(json.dumps(initial_status, indent=2, ensure_ascii=False))
+                                        }
+                                        st.code(json.dumps(initial_status, indent=2, ensure_ascii=False))
                                         
                                         st.rerun()
                                     else:
@@ -455,15 +456,15 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 st.markdown(f"### 当前状态: {status_text}")
                 
                 # 显示原始状态数据
-                with st.expander("📊 原始状态返回", expanded=True):
-                    # 清理 JSON 字符串中的控制字符
-                    cleaned_data = {
-                        k: str(v).replace('\n', ' ').replace('\r', '') 
-                        if isinstance(v, str) else v 
-                        for k, v in status_data.items()
-                    }
-                    st.code(json.dumps(cleaned_data, indent=2, ensure_ascii=False))
-                    st.text(f"Request ID: {st.session_state.current_request_id}")
+                st.markdown("### 原始状态返回")
+                # 清理 JSON 字符串中的控制字符
+                cleaned_data = {
+                    k: str(v).replace('\n', ' ').replace('\r', '') 
+                    if isinstance(v, str) else v 
+                    for k, v in status_data.items()
+                }
+                st.code(json.dumps(cleaned_data, indent=2, ensure_ascii=False))
+                st.text(f"Request ID: {st.session_state.current_request_id}")
                 
                 # 显示进度条
                 if isinstance(current_status, (int, float)):
@@ -520,7 +521,7 @@ st.markdown("""
 st.markdown(
     """
     <div style="text-align: center; margin-top: 50px; color: #666;">
-        <p>由 AI 驱动的论文播客生成器 | 基于 NotebookLM</p>
+        <p>由 AI 驱动���论文播客生成器 | 基于 NotebookLM</p>
     </div>
     """,
     unsafe_allow_html=True
@@ -555,7 +556,7 @@ def stop_status_check():
     st.session_state.current_request_id = None
 
 def check_generation_status(request_id: str):
-    """检查生成状态"""
+    """检���生成状态"""
     try:
         st.session_state.check_count += 1
         st.session_state.last_check_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
