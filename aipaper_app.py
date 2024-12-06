@@ -383,6 +383,30 @@ with st.container():
                                         st.success("✅ 音频生成请求已发送！")
                                         st.session_state.current_request_id = request_id
                                         st.session_state.should_stop_check = False
+                                        
+                                        # 显示请求ID和原始状态
+                                        st.code(f"Request ID: {request_id}")
+                                        
+                                        # 显示 JinaReader 状态
+                                        with st.expander("📊 JinaReader 状态", expanded=True):
+                                            st.info("正在从论文获取内容...")
+                                            jina_url = f"https://r.jina.ai/{content_data['paper_link']}"
+                                            st.code(f"JinaReader URL: {jina_url}")
+                                        
+                                        # 显示原始状态数据
+                                        with st.expander("📊 原始状态数据", expanded=True):
+                                            initial_status = {
+                                                "id": request_id,
+                                                "status": 0,
+                                                "updated_on": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                                "request_json": {
+                                                    "resources": resources,
+                                                    "text": text,
+                                                    "outputType": "audio"
+                                                }
+                                            }
+                                            st.code(json.dumps(initial_status, indent=2, ensure_ascii=False))
+                                        
                                         st.rerun()
                                     else:
                                         st.error("❌ 发送音频生成请求失败")
@@ -405,10 +429,41 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
             status_data = client.check_status(st.session_state.current_request_id)
             
             if status_data:
+                # 更新检查次数
+                if 'check_count' not in st.session_state:
+                    st.session_state.check_count = 0
+                st.session_state.check_count += 1
+                
+                # 显示检查信息
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.text(f"检查次数: {st.session_state.check_count}")
+                    check_time = datetime.now().strftime("%H:%M:%S")
+                    st.text(f"最后检查: {check_time}")
+                
+                with col2:
+                    if 'start_time' not in st.session_state:
+                        st.session_state.start_time = time.time()
+                    elapsed_time = int(time.time() - st.session_state.start_time)
+                    minutes = elapsed_time // 60
+                    seconds = elapsed_time % 60
+                    st.text(f"处理时间: {minutes}分{seconds}秒")
+                
                 # 显示状态文本
                 current_status = status_data.get("status", "unknown")
                 status_text = status_mapping.get(current_status, status_mapping["unknown"])
                 st.markdown(f"### 当前状态: {status_text}")
+                
+                # 显示原始状态数据
+                with st.expander("📊 原始状态返回", expanded=True):
+                    # 清理 JSON 字符串中的控制字符
+                    cleaned_data = {
+                        k: str(v).replace('\n', ' ').replace('\r', '') 
+                        if isinstance(v, str) else v 
+                        for k, v in status_data.items()
+                    }
+                    st.code(json.dumps(cleaned_data, indent=2, ensure_ascii=False))
+                    st.text(f"Request ID: {st.session_state.current_request_id}")
                 
                 # 显示进度条
                 if isinstance(current_status, (int, float)):
@@ -418,15 +473,23 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 
                 # 显示音频（如果已生成）
                 if status_data.get("audio_url"):
-                    st.success("✨ 音频生成���成！")
+                    st.success("✨ 音频生成完成！")
                     st.audio(status_data["audio_url"])
                     st.markdown(f"[📥 下载音频]({status_data['audio_url']})")
                     st.session_state.should_stop_check = True
+                    # 重置计数器
+                    st.session_state.check_count = 0
+                    if 'start_time' in st.session_state:
+                        del st.session_state.start_time
                 
                 # 显示错误信息
                 if status_data.get("error_message"):
                     st.error(f"错误: {status_data['error_message']}")
                     st.session_state.should_stop_check = True
+                    # 重置计数器
+                    st.session_state.check_count = 0
+                    if 'start_time' in st.session_state:
+                        del st.session_state.start_time
                 
                 # 自动刷新
                 if not st.session_state.should_stop_check:
