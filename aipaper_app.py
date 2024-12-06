@@ -302,6 +302,7 @@ with st.container():
         help="输入你感兴趣的研究主题，我们将为你找到相关的学术论文"
     )
     
+    # 搜索论文
     if st.button("🔍 查找相关论文", key="search_button", type="primary"):
         with st.spinner("正在搜索相关论文..."):
             try:
@@ -311,82 +312,85 @@ with st.container():
                 if paper_result:
                     st.session_state.papers = paper_result
                     st.success("找到相关论文！")
-                    
-                    # 显示论文列表
-                    with st.expander("📄 查看论文列表", expanded=True):
-                        st.markdown(paper_result)
-                    
-                    # 生成播客内容按钮
-                    if st.button("🎯 生成播客内容", key="generate_podcast_button"):
-                        st.session_state.generate_podcast = True
-                        st.rerun()
+                    st.session_state.show_papers = True
                 else:
                     st.error("❌ 未找到相关论文。")
             except Exception as e:
                 st.error(f"❌ 搜索过程中出错: {str(e)}")
 
-    # 处理生成播客内容
-    if st.session_state.get('generate_podcast', False) and st.session_state.get('papers'):
-        with st.spinner("正在生成播客内容..."):
-            try:
-                podcast_inputs = {"papers_list": st.session_state.papers}
-                generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
-                generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
-                
-                if generate_podcast_content:
-                    st.session_state.podcast_content = generate_podcast_content
-                    st.success("✨ 播客内容生成成功！")
-                    st.session_state.generate_podcast = False  # 重置状态
-                    
-                    # 显示生成的内容
-                    with st.expander("📝 查看生成的内容", expanded=True):
-                        content_data = None
-                        if hasattr(generate_podcast_content, 'raw'):
-                            raw_content = generate_podcast_content.raw
-                            if isinstance(raw_content, str):
-                                json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
-                                content_data = json.loads(json_str)
-                            else:
-                                content_data = raw_content
-                        else:
-                            content_data = generate_podcast_content
+    # 显示论文列表和生成按钮
+    if st.session_state.get('show_papers', False):
+        with st.expander("📄 查看论文列表", expanded=True):
+            st.markdown(st.session_state.papers)
+        
+        generate_button = st.button("🎯 生成播客内容", key="generate_podcast_button")
+        
+        if generate_button:
+            st.session_state.generate_podcast = True
+        
+        # 处理生成播客内容
+        if st.session_state.get('generate_podcast', False):
+            progress_placeholder = st.empty()
+            with progress_placeholder:
+                with st.spinner("🎙️ 正在生成播客内容..."):
+                    try:
+                        podcast_inputs = {"papers_list": st.session_state.papers}
+                        generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
+                        generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
                         
-                        if content_data:
-                            st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                            st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
-                            st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
+                        if generate_podcast_content:
+                            st.session_state.podcast_content = generate_podcast_content
+                            st.success("✨ 播客内容生成成功！")
                             
-                            # 生成音频按钮
-                            if st.button("🎙️ 生成音频", key="generate_audio_button"):
-                                with st.spinner("正在发送音频生成请求..."):
-                                    try:
-                                        client = NotebookLMClient(
-                                            os.getenv("NotebookLM_API_KEY"),
-                                            webhook_url="http://localhost:5000/webhook"
-                                        )
-                                        
-                                        resources = [
-                                            {"content": content_data['paper_link'], "type": "website"}
-                                        ]
-                                        text = content_data['prompt_text']
-                                        
-                                        request_id = client.send_content(resources, text)
-                                        
-                                        if request_id:
-                                            st.success("✅ 音频生成请求已发送！")
-                                            st.session_state.current_request_id = request_id
-                                            st.session_state.should_stop_check = False
-                                            st.rerun()
-                                        else:
-                                            st.error("❌ 发送音频生成请求失败")
-                                    except Exception as e:
-                                        st.error(f"❌ 发送请求时出错: {str(e)}")
-                else:
-                    st.error("❌ 生成播客内容失败。")
-                    st.session_state.generate_podcast = False  # 重置状态
-            except Exception as e:
-                st.error(f"❌ 生成过程中出错: {str(e)}")
-                st.session_state.generate_podcast = False  # 重置状态
+                            # 显示生成的内容
+                            with st.expander("📝 查看生成的内容", expanded=True):
+                                content_data = None
+                                if hasattr(generate_podcast_content, 'raw'):
+                                    raw_content = generate_podcast_content.raw
+                                    if isinstance(raw_content, str):
+                                        json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+                                        content_data = json.loads(json_str)
+                                    else:
+                                        content_data = raw_content
+                                else:
+                                    content_data = generate_podcast_content
+                                
+                                if content_data:
+                                    st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
+                                    st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
+                                    st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
+                                    
+                                    # 生成音频按钮
+                                    if st.button("🎙️ 生成音频", key="generate_audio_button"):
+                                        with st.spinner("正在发送音频生成请求..."):
+                                            try:
+                                                client = NotebookLMClient(
+                                                    os.getenv("NotebookLM_API_KEY"),
+                                                    webhook_url="http://localhost:5000/webhook"
+                                                )
+                                                
+                                                resources = [
+                                                    {"content": content_data['paper_link'], "type": "website"}
+                                                ]
+                                                text = content_data['prompt_text']
+                                                
+                                                request_id = client.send_content(resources, text)
+                                                
+                                                if request_id:
+                                                    st.success("✅ 音频生成请求已发送！")
+                                                    st.session_state.current_request_id = request_id
+                                                    st.session_state.should_stop_check = False
+                                                    st.rerun()
+                                                else:
+                                                    st.error("❌ 发送音频生成请求失败")
+                                            except Exception as e:
+                                                st.error(f"❌ 发送请求时出错: {str(e)}")
+                        else:
+                            st.error("❌ 生成播客内容失败。")
+                    except Exception as e:
+                        st.error(f"❌ 生成过程中出错: {str(e)}")
+                    finally:
+                        st.session_state.generate_podcast = False
 
 # 状态显示区域
 if 'current_request_id' in st.session_state and st.session_state.current_request_id:
