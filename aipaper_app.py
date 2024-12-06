@@ -388,11 +388,9 @@ with st.container():
                                         st.markdown("### 请求信息")
                                         st.code(f"Request ID: {request_id}")
                                         
-                                        # 显示 JinaReader 状态
-                                        st.markdown("### JinaReader 状态")
-                                        st.info("正在从论文获取内容...")
-                                        jina_url = f"https://r.jina.ai/{content_data['paper_link']}"
-                                        st.code(f"JinaReader URL: {jina_url}")
+                                        # 显示资源信息
+                                        st.markdown("### 资源信息")
+                                        st.code(f"PDF URL: {content_data['paper_link']}")
                                         
                                         # 显示原始状态数据
                                         st.markdown("### 初始状态")
@@ -411,8 +409,21 @@ with st.container():
                                         st.rerun()
                                     else:
                                         st.error("❌ 发送音频生成请求失败")
+                                        # 显示错误详情
+                                        with st.expander("查看错误详情"):
+                                            st.code(f"""
+资源信息:
+{json.dumps(resources, indent=2)}
+
+提示文本:
+{text}
+                                            """)
                                 except Exception as e:
                                     st.error(f"❌ 发送请求时出错: {str(e)}")
+                                    # 显示错误堆栈
+                                    with st.expander("查看错误堆栈"):
+                                        import traceback
+                                        st.code(traceback.format_exc())
                 except Exception as e:
                     st.error(f"❌ 显示内容时出错: {str(e)}")
 
@@ -521,7 +532,7 @@ st.markdown("""
 st.markdown(
     """
     <div style="text-align: center; margin-top: 50px; color: #666;">
-        <p>由 AI 驱动���论文播客生成器 | 基于 NotebookLM</p>
+        <p>由 AI 驱动论文播客生成器 | 基于 NotebookLM</p>
     </div>
     """,
     unsafe_allow_html=True
@@ -556,7 +567,7 @@ def stop_status_check():
     st.session_state.current_request_id = None
 
 def check_generation_status(request_id: str):
-    """检���生成状态"""
+    """检查生成状态"""
     try:
         st.session_state.check_count += 1
         st.session_state.last_check_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

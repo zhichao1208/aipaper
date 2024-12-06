@@ -136,17 +136,23 @@ class NotebookLMClient:
             self.logger.info(f"收到响应状态码: {response.status_code}")
             self.logger.debug(f"响应内容: {response.text}")
             
-            response.raise_for_status()
-            
-            data = response.json()
-            request_id = data.get("request_id")
-            
-            if request_id:
-                self.logger.info(f"成功获取请求ID: {request_id}")
-                return request_id
-            else:
-                error_message = data.get("error_message")
-                self.logger.error(f"响应中没有request_id，错误信息: {error_message}")
+            try:
+                response.raise_for_status()
+                data = response.json()
+                request_id = data.get("request_id")
+                
+                if request_id:
+                    self.logger.info(f"成功获取请求ID: {request_id}")
+                    return request_id
+                else:
+                    error_message = data.get("error_message", "未知错误")
+                    self.logger.error(f"响应中没有request_id，错误信息: {error_message}")
+                    return None
+                    
+            except requests.exceptions.HTTPError as e:
+                self.logger.error(f"HTTP错误: {str(e)}")
+                self.logger.error(f"响应状态码: {response.status_code}")
+                self.logger.error(f"响应内容: {response.text}")
                 return None
                 
         except requests.exceptions.RequestException as e:
