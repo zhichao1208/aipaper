@@ -20,7 +20,6 @@ print(response.text)
 3. reduce mp3 file size
 4. change it to english
 
-5. add directly url input for paper link
 6. add more details for podcast, delete 500 characters limit
 7. add apple podcast link and logo
 8. EPIC: add weekly papaers reviews 

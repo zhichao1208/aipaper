@@ -171,7 +171,7 @@ def generate_podcast_content(paper_link: str) -> PodcastContent:
             time.sleep(30)
             
         if status and status.get("audio_url"):
-            # 创建播客内容��象
+            # 创建播客内容��
             return PodcastContent(
                 title=f"AI Paper Review: {paper_link}",
                 description="An AI-generated review of the latest research paper",
@@ -307,12 +307,39 @@ with st.sidebar:
             st.error(f"{api} ✗")
 
 # 主要内容区域
-input_col1, = st.columns(1)
+input_col1, input_col2 = st.columns(2)
 
 with input_col1:
-    paper_link = st.text_input("📄 论文链接", placeholder="输入 arXiv 论文链接...")
+    topic = st.text_input(
+        "输入研究主题:",
+        placeholder="例如：AI music, Quantum Computing...",
+        help="输入你感兴趣的研究主题，我们将为你找到相关的学术论文"
+    )
     
-    if st.button("🎬 开始生成", type="primary"):
+    if st.button("🔍 查找相关论文", key="search_button"):
+        with st.spinner("正在搜索相关论文..."):
+            try:
+                find_papers_crew = AIPaperCrew().find_papers_crew()
+                paper_result = find_papers_crew.kickoff(inputs={"topic": topic})
+                
+                if paper_result:
+                    st.session_state.papers = paper_result
+                    st.success("找到相关论文！")
+                    with st.expander("📄 查看论文列表", expanded=True):
+                        st.markdown(paper_result)
+                else:
+                    st.error("❌ 未找到相关论文。")
+            except Exception as e:
+                st.error(f"❌ 搜索过程中出错: {str(e)}")
+
+with input_col2:
+    paper_link = st.text_input(
+        "直接输入论文链接:",
+        placeholder="https://arxiv.org/abs/2312.12345",
+        help="直接输入论文链接，我们将为你生成播客内容"
+    )
+    
+    if st.button("📝 直接生成内容", key="generate_direct_button"):
         if not paper_link:
             st.error("❌ 请输入论文链接")
         else:

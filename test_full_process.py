@@ -129,8 +129,8 @@ def test_full_process(request_id=None):
             print("✓ 文件上传成功")
             
             # 发布播客
-            description = test_content["description"][:490]  # 限制描述内容长度为500字符
-            print(f"\n描述内容长度: {len(description)}/500 字符")
+            description = test_content["description"]
+            print(f"\n描述内容长度: {len(description)} 字符")
             
             episode_data = podbean_client.publish_episode(
                 title=test_content["title"],
