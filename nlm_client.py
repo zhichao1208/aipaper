@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import os
+import base64
 from typing import List, Dict
 
 class NotebookLMClient:
@@ -22,42 +23,35 @@ class NotebookLMClient:
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger("NotebookLMClient")
         
-    def _get_paper_content(self, pdf_url: str) -> str:
+    def _get_pdf_content(self, pdf_url: str) -> str:
         """
-        使用 JinaReader 获取论文内容
+        下载PDF并转换为base64编码
         
         Args:
             pdf_url: PDF文件的URL
             
         Returns:
-            str: 论文内容文本
+            str: base64编码的PDF内容
         """
         try:
-            headers = {
-                'Authorization': f'Bearer {self.jina_token}'
-            }
-            
-            jina_url = f'https://r.jina.ai/{pdf_url}'
-            self.logger.info(f"从JinaReader获取内容: {jina_url}")
-            
-            response = requests.get(jina_url, headers=headers)
+            response = requests.get(pdf_url)
             response.raise_for_status()
-            
-            return response.text
-            
+            pdf_content = base64.b64encode(response.content).decode('utf-8')
+            self.logger.info("PDF文件已成功下载并编码")
+            return pdf_content
         except Exception as e:
-            self.logger.error(f"获取论文内容时出错: {str(e)}")
+            self.logger.error(f"获取PDF内容时出错: {str(e)}")
             return None
         
     def _convert_arxiv_url(self, url: str) -> list:
         """
-        将arXiv URL转换为论文内容资源
+        将arXiv URL转换为PDF资源
         
         Args:
             url: arXiv论文URL
             
         Returns:
-            list: 包含论文内容的资源列表
+            list: 包含PDF内容的资源列表
         """
         try:
             # 从URL中提取arXiv ID
@@ -68,14 +62,14 @@ class NotebookLMClient:
                 
             arxiv_id = match.group(1)
             
-            # 获取PDF内容
+            # 取PDF内容
             pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
-            paper_content = self._get_paper_content(pdf_url)
+            pdf_content = self._get_pdf_content(pdf_url)
             
-            if paper_content:
-                return [{"content": paper_content, "type": "text"}]
+            if pdf_content:
+                return [{"content": pdf_content, "type": "pdf"}]
             else:
-                self.logger.error("无法获取论文内容，使用原始URL")
+                self.logger.error("无法获取PDF内容，使用原始URL")
                 return [{"content": url, "type": "website"}]
             
         except Exception as e:
