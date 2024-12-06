@@ -55,25 +55,30 @@ class NotebookLMClient:
         """
         try:
             # 从URL中提取arXiv ID
-            match = re.search(r'arxiv.org/abs/(\d+\.\d+)', url)
+            match = re.search(r'arxiv.org/(?:abs|pdf)/(\d+\.\d+)', url)
             if not match:
                 self.logger.error(f"无法从URL中提取arXiv ID: {url}")
                 return [{"content": url, "type": "website"}]
                 
             arxiv_id = match.group(1)
+            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}.pdf"
             
-            # 取PDF内容
-            pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
-            pdf_content = self._get_pdf_content(pdf_url)
+            # 获取PDF内容
+            self.logger.info(f"正在下载PDF: {pdf_url}")
+            response = requests.get(pdf_url)
+            response.raise_for_status()
             
-            if pdf_content:
-                return [{"content": pdf_content, "type": "pdf"}]
-            else:
-                self.logger.error("无法获取PDF内容，使用原始URL")
-                return [{"content": url, "type": "website"}]
+            # 转换为base64
+            pdf_content = base64.b64encode(response.content).decode('utf-8')
+            self.logger.info("PDF文件已成功下载并编码")
+            
+            return [{
+                "content": pdf_content,
+                "type": "pdf"
+            }]
             
         except Exception as e:
-            self.logger.error(f"转换arXiv URL时出错: {str(e)}")
+            self.logger.error(f"处理PDF时出错: {str(e)}")
             return [{"content": url, "type": "website"}]
         
     def send_content(self, resources: list, text: str) -> str:
@@ -99,7 +104,7 @@ class NotebookLMClient:
             # 处理资源URL
             processed_resources = []
             for resource in resources:
-                if "arxiv.org/abs/" in resource["content"]:
+                if "arxiv.org/" in resource["content"]:
                     processed_resources.extend(self._convert_arxiv_url(resource["content"]))
                 else:
                     processed_resources.append(resource)
