@@ -323,46 +323,40 @@ with st.container():
         with st.expander("📄 查看论文列表", expanded=True):
             st.markdown(st.session_state.papers)
         
-        generate_button = st.button("🎯 生成播客内容", key="generate_podcast_button")
-        
-        if generate_button:
-            st.session_state.generate_podcast = True
-            st.session_state.generation_complete = False
-        
-        # 处理生成播客内容
-        if st.session_state.get('generate_podcast', False):
-            if not st.session_state.get('generation_complete', False):
-                with st.spinner("🎙️ 正在生成播客内容..."):
-                    try:
-                        podcast_inputs = {"papers_list": st.session_state.papers}
-                        generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
-                        generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
-                        
-                        if generate_podcast_content:
-                            st.session_state.podcast_content = generate_podcast_content
-                            st.session_state.generation_complete = True
-                            st.success("✨ 播客内容生成成功！")
-                            st.rerun()
-                        else:
-                            st.error("❌ 生成播客内容失败。")
-                    except Exception as e:
-                        st.error(f"❌ 生成过程中出错: {str(e)}")
-                    finally:
-                        st.session_state.generate_podcast = False
-            
-            # 显示生成的内容
-            if st.session_state.get('generation_complete', False):
-                with st.expander("📝 查看生成的内容", expanded=True):
+        if st.button("🎯 生成播客内容", key="generate_podcast_button"):
+            with st.spinner("🎙️ 正在生成播客内容..."):
+                try:
+                    podcast_inputs = {"papers_list": st.session_state.papers}
+                    generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
+                    generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
+                    
+                    if generate_podcast_content:
+                        # 保存生成的内容到 session_state
+                        st.session_state.podcast_content = generate_podcast_content
+                        st.session_state.content_generated = True
+                        st.success("✨ 播客内容生成成功！")
+                        st.rerun()
+                    else:
+                        st.error("❌ 生成播客内容失败。")
+                except Exception as e:
+                    st.error(f"❌ 生成过程中出错: {str(e)}")
+
+        # 显示生成的内容
+        if st.session_state.get('content_generated', False):
+            with st.expander("📝 查看生成的内容", expanded=True):
+                try:
                     content_data = None
-                    if hasattr(st.session_state.podcast_content, 'raw'):
-                        raw_content = st.session_state.podcast_content.raw
+                    podcast_content = st.session_state.podcast_content
+                    
+                    if hasattr(podcast_content, 'raw'):
+                        raw_content = podcast_content.raw
                         if isinstance(raw_content, str):
                             json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
                             content_data = json.loads(json_str)
                         else:
                             content_data = raw_content
                     else:
-                        content_data = st.session_state.podcast_content
+                        content_data = podcast_content
                     
                     if content_data:
                         st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
@@ -394,6 +388,8 @@ with st.container():
                                         st.error("❌ 发送音频生成请求失败")
                                 except Exception as e:
                                     st.error(f"❌ 发送请求时出错: {str(e)}")
+                except Exception as e:
+                    st.error(f"❌ 显示内容时出错: {str(e)}")
 
 # 状态显示区域
 if 'current_request_id' in st.session_state and st.session_state.current_request_id:
@@ -422,7 +418,7 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 
                 # 显示音频（如果已生成）
                 if status_data.get("audio_url"):
-                    st.success("✨ 音频生成完成！")
+                    st.success("✨ 音频生成���成！")
                     st.audio(status_data["audio_url"])
                     st.markdown(f"[📥 下载音频]({status_data['audio_url']})")
                     st.session_state.should_stop_check = True
