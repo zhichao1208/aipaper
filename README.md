@@ -15,13 +15,9 @@ response = requests.get('https://r.jina.ai/https://example.com', headers=headers
 print(response.text)
 ```
 
-1. Clear up the code, delete test content print
-2. add media player for podcast, replace the markdown link
-3. reduce mp3 file size
+
 4. change it to english
 
-6. add more details for podcast, delete 500 characters limit
-7. add apple podcast link and logo
 8. EPIC: add weekly papaers reviews 
 9. chose the paper from the list of search results
 
