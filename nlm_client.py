@@ -2,6 +2,7 @@ import requests
 import json
 import logging
 import re
+import os
 from typing import List, Dict
 
 class NotebookLMClient:
@@ -15,20 +16,48 @@ class NotebookLMClient:
         self.api_key = api_key
         self.webhook_url = webhook_url
         self.base_url = "https://api.autocontentapi.com"
+        self.jina_token = os.getenv("JINA_TOKEN")
         
         # 设置日志
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger("NotebookLMClient")
         
+    def _get_paper_content(self, pdf_url: str) -> str:
+        """
+        使用 JinaReader 获取论文内容
+        
+        Args:
+            pdf_url: PDF文件的URL
+            
+        Returns:
+            str: 论文内容文本
+        """
+        try:
+            headers = {
+                'Authorization': f'Bearer {self.jina_token}'
+            }
+            
+            jina_url = f'https://r.jina.ai/{pdf_url}'
+            self.logger.info(f"从JinaReader获取内容: {jina_url}")
+            
+            response = requests.get(jina_url, headers=headers)
+            response.raise_for_status()
+            
+            return response.text
+            
+        except Exception as e:
+            self.logger.error(f"获取论文内容时出错: {str(e)}")
+            return None
+        
     def _convert_arxiv_url(self, url: str) -> list:
         """
-        将arXiv URL转换为PDF和HTML URL
+        将arXiv URL转换为论文内容资源
         
         Args:
             url: arXiv论文URL
             
         Returns:
-            list: 包含PDF和HTML URL的资源列表
+            list: 包含论文内容的资源列表
         """
         try:
             # 从URL中提取arXiv ID
@@ -39,14 +68,15 @@ class NotebookLMClient:
                 
             arxiv_id = match.group(1)
             
-            # 构建PDF和HTML URL
+            # 获取PDF内容
             pdf_url = f"https://arxiv.org/pdf/{arxiv_id}"
-            html_url = f"https://arxiv.org/html/{arxiv_id}"
+            paper_content = self._get_paper_content(pdf_url)
             
-            return [
-                {"content": pdf_url, "type": "website"},
-                {"content": html_url, "type": "website"}
-            ]
+            if paper_content:
+                return [{"content": paper_content, "type": "text"}]
+            else:
+                self.logger.error("无法获取论文内容，使用原始URL")
+                return [{"content": url, "type": "website"}]
             
         except Exception as e:
             self.logger.error(f"转换arXiv URL时出错: {str(e)}")
