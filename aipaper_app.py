@@ -343,7 +343,7 @@ with st.container():
 
         # 显示生成的内容
         if st.session_state.get('content_generated', False):
-            with st.expander("�� 查看生成的内容", expanded=True):
+            with st.expander("查看生成的内容", expanded=True):
                 try:
                     content_data = None
                     podcast_content = st.session_state.podcast_content
@@ -408,7 +408,7 @@ with st.container():
                                         
                                         st.rerun()
                                     else:
-                                        st.error("❌ 发送音频生成请���失败")
+                                        st.error("❌ 发送音频生成请求失败")
                                         # 显示错误详情
                                         with st.expander("查看错误详情"):
                                             st.code(f"""
@@ -602,29 +602,25 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
             time.sleep(30)
             st.rerun()
 
-# 页脚前添加 Apple Podcasts 播放器
+# 页脚前添加 Podbean 播放器
 st.markdown("""
     <iframe 
-        height="450" 
+        title="AI Paper+" 
+        allowtransparency="true" 
+        height="315" 
         width="100%" 
-        title="Media player" 
-        src="https://embed.podcasts.apple.com/us/podcast/ai-paper/id1779979572?itscg=30200&itsct=podcast_box_player&ls=1&mttnsubad=1779979572&theme=auto" 
-        id="embedPlayer" 
-        sandbox="allow-forms allow-popups allow-same-origin allow-scripts allow-top-navigation-by-user-activation" 
-        allow="autoplay *; encrypted-media *; clipboard-write" 
-        style="border: 0px; border-radius: 12px; width: 100%; height: 450px; max-width: 660px;">
+        style="border: none; min-width: min(100%, 430px);height:315px;" 
+        scrolling="no" 
+        data-name="pb-iframe-player" 
+        src="https://www.podbean.com/player-v2/?i=t65yp-12d7e0b-pbblog-playlist&share=1&download=1&rtl=0&fonts=Arial&skin=1&font-color=auto&logo_link=episode_page&order=episodic&limit=10&filter=all&ss=a713390a017602015775e868a2cf26b0&btn-skin=3267a3&size=315" 
+        loading="lazy" 
+        allowfullscreen="">
     </iframe>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # 页脚
-st.markdown(
-    """
-    <div style="text-align: center; margin-top: 50px; color: #666;">
-        <p>由 AI 驱动论文播客生成器 | 基于 NotebookLM</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+st.markdown("---")
+st.markdown("Made with ❤️ by [AI Paper+](https://aipaper.plus)")
 
 def check_status_thread():
     """状态检查线程函数"""
