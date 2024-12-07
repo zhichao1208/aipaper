@@ -98,7 +98,7 @@ def normalize_podcast_content(content: dict) -> Optional[Dict[str, Any]]:
 def generate_content_with_chatgpt(paper_link: str) -> Optional[Dict[str, Any]]:
     """使用ChatGPT直接生成播客内容"""
     try:
-        system_prompt = """你是一个专业的学术播客内容生成助手。请生成一个包含以下字段的JSON格式内容：
+        system_prompt = """你是一个专业的学术播客内容生成助手。请生成一个包含以下字段的JSON格��内容：
         {
             "title": "播客标题",
             "description": "播客描述",
@@ -308,30 +308,28 @@ if submit_button:
                 os.getenv("NotebookLM_API_KEY"),
                 webhook_url="http://localhost:5000/webhook"
             )
-            
-            # Prepare request data
             request_data = {
                 "paper_link": paper_link if paper_link else None,
                 "paper_title": paper_title if paper_title else None,
                 "paper_authors": paper_authors if paper_authors else None,
                 "paper_abstract": paper_abstract if paper_abstract else None
             }
-            
-            # Send request
-            with st.spinner("Sending request..."):
+            with st.spinner("正在发送请求..."):
                 response = client.send_request(request_data)
-                
                 if response and response.get("request_id"):
                     st.session_state.current_request_id = response["request_id"]
                     st.session_state.should_stop_check = False
-                    st.success("✨ Request sent successfully!")
+                    st.success("✨ 请求发送成功！")
                     st.session_state.content_generated = True
                     st.rerun()
                 else:
-                    st.error("❌ Failed to send request")
-                    # Show error details
-                    with st.expander("View Error Details"):
+                    st.error("❌ 请求发送失败")
+                    with st.expander("查看错误详情"):
                         st.json(response)
+        except Exception as e:
+            st.error(f"请求出错: {str(e)}")
+            with st.expander("查看错误详情"):
+                st.exception(e)
 
 # Display generated content
 if st.session_state.get('content_generated', False):
