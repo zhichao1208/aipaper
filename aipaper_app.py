@@ -429,21 +429,24 @@ with st.container():
 
 # 状态显示区域
 if 'current_request_id' in st.session_state and st.session_state.current_request_id:
-    with st.fragment('status_updates'):
-        st.subheader("📊 处理状态")
-        try:
-            # 获取最新状态
-            client = NotebookLMClient(
-                os.getenv("NotebookLM_API_KEY"),
-                webhook_url="http://localhost:5000/webhook"
-            )
-            status_data = client.check_status(st.session_state.current_request_id)
+    status_container = st.empty()
+    
+    try:
+        # 获取最新状态
+        client = NotebookLMClient(
+            os.getenv("NotebookLM_API_KEY"),
+            webhook_url="http://localhost:5000/webhook"
+        )
+        status_data = client.check_status(st.session_state.current_request_id)
+        
+        if status_data:
+            # 更新检查次数
+            if 'check_count' not in st.session_state:
+                st.session_state.check_count = 0
+            st.session_state.check_count += 1
             
-            if status_data:
-                # 更新检查次数
-                if 'check_count' not in st.session_state:
-                    st.session_state.check_count = 0
-                st.session_state.check_count += 1
+            with status_container:
+                st.subheader("📊 处理状态")
                 
                 # 显示检查信息
                 col1, col2 = st.columns(2)
@@ -594,13 +597,14 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                     time.sleep(30)  # 每30秒检查一次
                     st.rerun()
                     
-        except Exception as e:
+    except Exception as e:
+        with status_container:
             st.error(f"状态更新出错: {str(e)}")
-            if not st.session_state.should_stop_check:
-                time.sleep(30)
-                st.rerun()
+        if not st.session_state.should_stop_check:
+            time.sleep(30)
+            st.rerun()
 
-# 页脚前添加 Apple Podcasts ���放器
+# 页脚前添加 Apple Podcasts 播放器
 st.markdown("""
     <iframe 
         height="450" 
@@ -630,7 +634,7 @@ def check_status_thread():
         while not st.session_state.should_stop_check:
             if st.session_state.current_request_id:
                 check_generation_status(st.session_state.current_request_id)
-            time.sleep(30)  # 每30秒检查一次
+            time.sleep(30)  # 每30���检查一次
     except Exception as e:
         print(f"状态检查线程出错: {str(e)}")
     finally:
