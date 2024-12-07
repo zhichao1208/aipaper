@@ -485,14 +485,77 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 
                 # 显示音频（如果已生成）
                 if status_data.get("audio_url"):
-                    st.success("✨ 音频生成完成！")
+                    st.success("✨ ��频生成完成！")
                     st.audio(status_data["audio_url"])
                     st.markdown(f"[📥 下载音频]({status_data['audio_url']})")
-                    st.session_state.should_stop_check = True
-                    # 重置计数器
-                    st.session_state.check_count = 0
-                    if 'start_time' in st.session_state:
-                        del st.session_state.start_time
+                    
+                    # 自动上传到 Podbean
+                    try:
+                        # 下载音频文件
+                        temp_wav = "temp_audio.wav"
+                        output_mp3 = "podcast_audio.mp3"
+                        
+                        audio_handler = AudioHandler()
+                        if audio_handler.download_audio(status_data["audio_url"], temp_wav):
+                            st.info("✓ 音频文件下载完成，正在转换格式...")
+                            
+                            if audio_handler.convert_wav_to_mp3(temp_wav, output_mp3):
+                                st.info("✓ 音频格式转换完成，正在上传到播客平台...")
+                                
+                                # 上传到 Podbean
+                                podbean_client = PodbeanUploader(
+                                    os.getenv("PODBEAN_CLIENT_ID"),
+                                    os.getenv("PODBEAN_CLIENT_SECRET")
+                                )
+                                
+                                # 获取上传授权
+                                upload_auth = podbean_client.authorize_file_upload(
+                                    "podcast_audio.mp3",
+                                    output_mp3
+                                )
+                                
+                                if upload_auth:
+                                    if podbean_client.upload_file_to_presigned_url(
+                                        upload_auth["presigned_url"],
+                                        output_mp3
+                                    ):
+                                        st.info("✓ 文件上传成功，正在发布播客...")
+                                        
+                                        # 发布播客
+                                        content_data = st.session_state.podcast_content
+                                        episode_data = podbean_client.publish_episode(
+                                            title=content_data.title,
+                                            content=content_data.description,
+                                            file_key=upload_auth["file_key"]
+                                        )
+                                        
+                                        if episode_data:
+                                            st.success("🎉 播客发布成功！")
+                                            st.markdown(f"[🎙️ 收听播客]({episode_data.get('episode_url')})")
+                                        else:
+                                            st.error("❌ 播客发布失败")
+                                    else:
+                                        st.error("❌ 文件上传失败")
+                                else:
+                                    st.error("❌ 获取 Podbean 上传授权失败")
+                            else:
+                                st.error("❌ 音频格式转换失败")
+                        else:
+                            st.error("❌ 音频文件下载失败")
+                            
+                        # 清理临时文件
+                        for temp_file in [temp_wav, output_mp3]:
+                            if os.path.exists(temp_file):
+                                os.remove(temp_file)
+                                
+                    except Exception as e:
+                        st.error(f"❌ 发布过程中出错: {str(e)}")
+                    finally:
+                        st.session_state.should_stop_check = True
+                        # 重置计数器
+                        st.session_state.check_count = 0
+                        if 'start_time' in st.session_state:
+                            del st.session_state.start_time
                 
                 # 显示错误信息
                 if status_data.get("error_message"):
