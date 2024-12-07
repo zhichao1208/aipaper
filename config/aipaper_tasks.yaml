@@ -27,5 +27,4 @@ write_task:
   expected_output: >
     provide title, description,  paper_link and prompt_text for NLM in json format.
     add paper title, paper link, publish date and authors at the end of description.
-    total English characters count should be less than 400.
     add a prompt_text, less than 100, short intro to podcast host, how should they talk about this paper.

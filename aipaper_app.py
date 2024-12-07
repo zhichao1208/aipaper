@@ -429,8 +429,7 @@ with st.container():
 
 # 状态显示区域
 if 'current_request_id' in st.session_state and st.session_state.current_request_id:
-    status_container = st.container()
-    with status_container:
+    with st.fragment('status_updates'):
         st.subheader("📊 处理状态")
         try:
             # 获取最新状态
@@ -485,7 +484,7 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 
                 # 显示音频（如果已生成）
                 if status_data.get("audio_url"):
-                    st.success("✨ ��频生成完成！")
+                    st.success("✨ 音频生成完成！")
                     st.audio(status_data["audio_url"])
                     st.markdown(f"[📥 下载音频]({status_data['audio_url']})")
                     
@@ -523,9 +522,33 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                                         
                                         # 发布播客
                                         content_data = st.session_state.podcast_content
+                                        if isinstance(content_data, dict):
+                                            title = content_data.get('title')
+                                            description = content_data.get('description')
+                                        else:
+                                            # 如果是 CrewOutput 对象，尝试获取 raw 内容
+                                            if hasattr(content_data, 'raw'):
+                                                raw_content = content_data.raw
+                                                if isinstance(raw_content, str):
+                                                    # 移除可能的 JSON 代码块标记
+                                                    json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
+                                                    content_data = json.loads(json_str)
+                                                    title = content_data.get('title')
+                                                    description = content_data.get('description')
+                                                else:
+                                                    content_data = raw_content
+                                                    title = content_data.get('title')
+                                                    description = content_data.get('description')
+                                            else:
+                                                title = getattr(content_data, 'title', None)
+                                                description = getattr(content_data, 'description', None)
+                                        
+                                        if not title or not description:
+                                            raise ValueError("无法获取播客标题或描述")
+                                            
                                         episode_data = podbean_client.publish_episode(
-                                            title=content_data.title,
-                                            content=content_data.description,
+                                            title=title,
+                                            content=description,
                                             file_key=upload_auth["file_key"]
                                         )
                                         
@@ -577,7 +600,7 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 time.sleep(30)
                 st.rerun()
 
-# 页脚前添加 Apple Podcasts 播放器
+# 页脚前添加 Apple Podcasts ���放器
 st.markdown("""
     <iframe 
         height="450" 
