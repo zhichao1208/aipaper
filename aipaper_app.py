@@ -391,7 +391,7 @@ with st.container():
                                         
                                         # 显示资源信息
                                         st.markdown("### 资源信息")
-                                        st.code(f"PDF URL: {content_data['paper_link']}")
+                                        st.code(f"Paper URL: {content_data['paper_link']}")
                                         
                                         st.rerun()
                                     else:
