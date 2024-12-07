@@ -98,7 +98,7 @@ def normalize_podcast_content(content: dict) -> Optional[Dict[str, Any]]:
 def generate_content_with_chatgpt(paper_link: str) -> Optional[Dict[str, Any]]:
     """使用ChatGPT直接生成播客内容"""
     try:
-        system_prompt = """你是一个专业的学术播客内容生成助手。请生成一个包含以下字段的JSON格式内容：
+        system_prompt = """你是一个专业的学术播客内容生成助手。请生成一个包含以下字段的JSON格��内容：
         {
             "title": "播客标题",
             "description": "播客描述",
@@ -332,6 +332,10 @@ if submit_button:
                     # Show error details
                     with st.expander("View Error Details"):
                         st.json(response)
+        except Exception as e:
+            st.error(f"Error during request: {str(e)}")
+            with st.expander("View Error Details"):
+                st.exception(e)
 
 # Display generated content
 if st.session_state.get('content_generated', False):
@@ -380,7 +384,6 @@ if st.session_state.get('content_generated', False):
                     except json.JSONDecodeError:
                         st.error("Invalid content format")
                         st.text(content_data)
-            
         except Exception as e:
             st.error(f"Error displaying content: {str(e)}")
 
@@ -504,7 +507,6 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                                         st.json(upload_result)
                                 else:
                                     st.error("Failed to upload audio to cloud storage")
-                            
                     except Exception as e:
                         st.error(f"❌ Error during publishing: {str(e)}")
                     finally:
