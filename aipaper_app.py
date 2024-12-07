@@ -343,7 +343,7 @@ with st.container():
 
         # 显示生成的内容
         if st.session_state.get('content_generated', False):
-            with st.expander("📝 查看生成的内容", expanded=True):
+            with st.expander("�� 查看生成的内容", expanded=True):
                 try:
                     content_data = None
                     podcast_content = st.session_state.podcast_content
@@ -408,7 +408,7 @@ with st.container():
                                         
                                         st.rerun()
                                     else:
-                                        st.error("❌ 发送音频生成请求失败")
+                                        st.error("❌ 发送音频生成请���失败")
                                         # 显示错误详情
                                         with st.expander("查看错误详情"):
                                             st.code(f"""
@@ -429,6 +429,26 @@ with st.container():
 
 # 状态显示区域
 if 'current_request_id' in st.session_state and st.session_state.current_request_id:
+    st.subheader("📊 处理状态")
+    
+    # 显示检查信息
+    col1, col2 = st.columns(2)
+    with col1:
+        if 'check_count' not in st.session_state:
+            st.session_state.check_count = 0
+        st.text(f"检查次数: {st.session_state.check_count}")
+        check_time = datetime.now().strftime("%H:%M:%S")
+        st.text(f"最后检查: {check_time}")
+    
+    with col2:
+        if 'start_time' not in st.session_state:
+            st.session_state.start_time = time.time()
+        elapsed_time = int(time.time() - st.session_state.start_time)
+        minutes = elapsed_time // 60
+        seconds = elapsed_time % 60
+        st.text(f"处理时间: {minutes}分{seconds}秒")
+    
+    # 动态状态容器
     status_container = st.empty()
     
     try:
@@ -441,28 +461,9 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
         
         if status_data:
             # 更新检查次数
-            if 'check_count' not in st.session_state:
-                st.session_state.check_count = 0
             st.session_state.check_count += 1
             
             with status_container:
-                st.subheader("📊 处理状态")
-                
-                # 显示检查信息
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.text(f"检查次数: {st.session_state.check_count}")
-                    check_time = datetime.now().strftime("%H:%M:%S")
-                    st.text(f"最后检查: {check_time}")
-                
-                with col2:
-                    if 'start_time' not in st.session_state:
-                        st.session_state.start_time = time.time()
-                    elapsed_time = int(time.time() - st.session_state.start_time)
-                    minutes = elapsed_time // 60
-                    seconds = elapsed_time % 60
-                    st.text(f"处理时间: {minutes}分{seconds}秒")
-                
                 # 显示状态文本
                 current_status = status_data.get("status", "unknown")
                 status_text = status_mapping.get(current_status, status_mapping["unknown"])
@@ -579,7 +580,6 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                     finally:
                         st.session_state.should_stop_check = True
                         # 重置计数器
-                        st.session_state.check_count = 0
                         if 'start_time' in st.session_state:
                             del st.session_state.start_time
                 
@@ -587,8 +587,6 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 if status_data.get("error_message"):
                     st.error(f"错误: {status_data['error_message']}")
                     st.session_state.should_stop_check = True
-                    # 重置计数器
-                    st.session_state.check_count = 0
                     if 'start_time' in st.session_state:
                         del st.session_state.start_time
                 
@@ -634,7 +632,7 @@ def check_status_thread():
         while not st.session_state.should_stop_check:
             if st.session_state.current_request_id:
                 check_generation_status(st.session_state.current_request_id)
-            time.sleep(30)  # 每30���检查一次
+            time.sleep(30)  # 每30秒检查一次
     except Exception as e:
         print(f"状态检查线程出错: {str(e)}")
     finally:
