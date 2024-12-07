@@ -3,7 +3,7 @@ import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import streamlit as st
-from nlm_client import NotebookLMClient
+from nlm_client import NotebookLMClient, CrewOutput
 from audio_handler import AudioHandler
 from podbean_uploader import PodbeanUploader
 from aipaper_agents import NewsroomCrew
@@ -21,16 +21,17 @@ import html
 from queue import Queue
 from typing import Optional, Dict, Any
 from podcast_schema import PodcastContent, normalize_content
+from cloudinary_storage import CloudStorage
+from podbean_client import PodbeanClient
 
 # 状态映射字典
 status_mapping = {
-    "unknown": "未知状态",
-    0: "等待处理",
-    10: "正在初始化",
-    20: "正在处理",
-    30: "正在生成音频",
-    60: "处理中",
-    80: "即将完成"
+    "unknown": "⏳ Unknown Status",
+    "pending": "⏳ Pending",
+    "processing": "🔄 Processing",
+    "completed": "✅ Completed",
+    "failed": "❌ Failed",
+    "error": "❌ Error"
 }
 
 def parse_podbean_feed(feed_url: str) -> list:
@@ -188,10 +189,9 @@ def generate_podcast_content(paper_link: str) -> PodcastContent:
 
 # 页面配置
 st.set_page_config(
-    page_title="AI Paper Podcast Generator",
-    page_icon="🎙️",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="AI Paper+",
+    page_icon="📚",
+    layout="centered"
 )
 
 # 自定义CSS样式
@@ -265,180 +265,137 @@ if 'generate_podcast' not in st.session_state:
     st.session_state.generate_podcast = False
 
 # 主界面布局
-st.title("🎙️ AI论文播客生成器")
+st.title("AI Paper+ 🎙️")
+st.markdown("""
+    Transform academic papers into engaging podcast episodes with AI.
+    Just paste your paper link below to get started!
+""")
 
-# 侧边栏配置
-with st.sidebar:
-    st.subheader("⚙️ 配置")
-    
-    # API 状态检查
-    st.subheader("API 状态")
-    
-    # 安全地检查配置（同时检查 secrets 和环境变量）
-    def check_config(key):
-        try:
-            return bool(st.secrets.get(key)) or bool(os.getenv(key))
-        except Exception:
-            return bool(os.getenv(key))
-    
-    api_status = {
-        "OpenAI": check_config("OPENAI_API_KEY"),
-        "NotebookLM": check_config("NotebookLM_API_KEY"),
-        "Podbean": check_config("PODBEAN_CLIENT_ID"),
-        "Cloudinary": check_config("CLOUDINARY_CLOUD_NAME")
-    }
-    
-    for api, status in api_status.items():
-        if status:
-            st.success(f"{api} ✓")
-        else:
-            st.error(f"{api} ✗")
-
-# 主要内容区域
-with st.container():
-    topic = st.text_input(
-        "输入研究主题:",
-        placeholder="例如：AI music, Quantum Computing...",
-        help="输入你感兴趣的研究主题，我们将为你找到相关的学术论文"
+# 输入部分
+with st.form("paper_input"):
+    paper_link = st.text_input(
+        "Paper Link",
+        placeholder="Enter the URL of your academic paper"
     )
     
-    # 搜索论文
-    if st.button("🔍 查找相关论文", key="search_button", type="primary"):
-        with st.spinner("正在搜索相关论文..."):
-            try:
-                find_papers_crew = AIPaperCrew().find_papers_crew()
-                paper_result = find_papers_crew.kickoff(inputs={"topic": topic})
+    col1, col2 = st.columns(2)
+    with col1:
+        paper_title = st.text_input(
+            "Paper Title (Optional)",
+            placeholder="Enter paper title if URL is unavailable"
+        )
+    with col2:
+        paper_authors = st.text_input(
+            "Authors (Optional)",
+            placeholder="Enter paper authors"
+        )
+    
+    paper_abstract = st.text_area(
+        "Abstract (Optional)",
+        placeholder="Enter paper abstract if URL is unavailable",
+        height=150
+    )
+    
+    submit_button = st.form_submit_button("Generate Podcast 🎙️")
+
+if submit_button:
+    if not paper_link and not (paper_title and paper_abstract):
+        st.error("Please provide either a paper link or both title and abstract")
+    else:
+        try:
+            # Initialize clients
+            client = NotebookLMClient(
+                os.getenv("NotebookLM_API_KEY"),
+                webhook_url="http://localhost:5000/webhook"
+            )
+            
+            # Prepare request data
+            request_data = {
+                "paper_link": paper_link if paper_link else None,
+                "paper_title": paper_title if paper_title else None,
+                "paper_authors": paper_authors if paper_authors else None,
+                "paper_abstract": paper_abstract if paper_abstract else None
+            }
+            
+            # Send request
+            with st.spinner("Sending request..."):
+                response = client.send_request(request_data)
                 
-                if paper_result:
-                    st.session_state.papers = paper_result
-                    st.success("找到相关论文！")
-                    st.session_state.show_papers = True
+                if response and response.get("request_id"):
+                    st.session_state.current_request_id = response["request_id"]
+                    st.session_state.should_stop_check = False
+                    st.success("✨ Request sent successfully!")
+                    st.session_state.content_generated = True
+                    st.rerun()
                 else:
-                    st.error("❌ 未找到相关论文。")
-            except Exception as e:
-                st.error(f"❌ 搜索过程中出错: {str(e)}")
+                    st.error("❌ Failed to send request")
+                    # Show error details
+                    with st.expander("View Error Details"):
+                        st.json(response)
 
-    # 显示论文列表和生成按钮
-    if st.session_state.get('show_papers', False):
-        with st.expander("📄 查看论文列表", expanded=True):
-            st.markdown(st.session_state.papers)
-        
-        if st.button("🎯 生成播客内容", key="generate_podcast_button"):
-            with st.spinner("🎙️ 正在生成播客内容..."):
-                try:
-                    podcast_inputs = {"papers_list": st.session_state.papers}
-                    generate_podcast_crew = AIPaperCrew().generate_podcast_content_crew()
-                    generate_podcast_content = generate_podcast_crew.kickoff(inputs=podcast_inputs)
+# Display generated content
+if st.session_state.get('content_generated', False):
+    with st.expander("View Generated Content", expanded=True):
+        try:
+            content_data = None
+            
+            if 'content_data' in st.session_state:
+                content_data = st.session_state.content_data
+            
+            if content_data:
+                if isinstance(content_data, dict):
+                    # Handle dictionary format
+                    st.markdown("### Episode Title")
+                    st.write(content_data.get('title', 'Title not available'))
                     
-                    if generate_podcast_content:
-                        # 保存生成的内容到 session_state
-                        st.session_state.podcast_content = generate_podcast_content
-                        st.session_state.content_generated = True
-                        st.success("✨ 播客内容生成成功！")
-                        st.rerun()
-                    else:
-                        st.error("❌ 生成播客内容失败。")
-                except Exception as e:
-                    st.error(f"❌ 生成过程中出错: {str(e)}")
-
-        # 显示生成的内容
-        if st.session_state.get('content_generated', False):
-            with st.expander("查看生成的内容", expanded=True):
-                try:
-                    content_data = None
-                    podcast_content = st.session_state.podcast_content
+                    st.markdown("### Episode Description")
+                    st.write(content_data.get('description', 'Description not available'))
                     
-                    if hasattr(podcast_content, 'raw'):
-                        raw_content = podcast_content.raw
-                        if isinstance(raw_content, str):
-                            json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
-                            content_data = json.loads(json_str)
-                        else:
-                            content_data = raw_content
-                    else:
-                        content_data = podcast_content
+                    st.markdown("### Show Notes")
+                    st.write(content_data.get('show_notes', 'Show notes not available'))
                     
-                    if content_data:
-                        st.markdown(f"**标题**: {content_data.get('title', 'N/A')}")
-                        st.markdown(f"**描述**: {content_data.get('description', 'N/A')}")
-                        st.markdown(f"**提示文本**: {content_data.get('prompt_text', content_data.get('prompt', 'N/A'))}")
+                elif isinstance(content_data, CrewOutput):
+                    # Handle CrewOutput format
+                    st.markdown("### Episode Title")
+                    st.write(getattr(content_data, 'title', 'Title not available'))
+                    
+                    st.markdown("### Episode Description")
+                    st.write(getattr(content_data, 'description', 'Description not available'))
+                    
+                    st.markdown("### Show Notes")
+                    st.write(getattr(content_data, 'show_notes', 'Show notes not available'))
+                    
+                else:
+                    # Handle string format (JSON)
+                    try:
+                        json_data = json.loads(content_data)
+                        st.markdown("### Episode Title")
+                        st.write(json_data.get('title', 'Title not available'))
                         
-                        # 生成音频按钮
-                        if st.button("🎙️ 生成音频", key="generate_audio_button"):
-                            with st.spinner("正在发送音频生成请求..."):
-                                try:
-                                    client = NotebookLMClient(
-                                        os.getenv("NotebookLM_API_KEY"),
-                                        webhook_url="http://localhost:5000/webhook"
-                                    )
-                                    
-                                    resources = [
-                                        {"content": content_data['paper_link'], "type": "website"}
-                                    ]
-                                    text = content_data['prompt_text']
-                                    
-                                    request_id = client.send_content(resources, text)
-                                    
-                                    if request_id:
-                                        st.success("✅ 音频生成请求已发送！")
-                                        st.session_state.current_request_id = request_id
-                                        st.session_state.should_stop_check = False
-                                        
-                                        # 显示请求ID
-                                        st.markdown("### 请求信息")
-                                        st.code(f"Request ID: {request_id}")
-                                        
-                                        # 显示资源信息
-                                        st.markdown("### 资源信息")
-                                        st.code(f"PDF URL: {content_data['paper_link']}")
-                                        
-                                        # 显示原始状态数据
-                                        st.markdown("### 初始状态")
-                                        initial_status = {
-                                            "id": request_id,
-                                            "status": 0,
-                                            "updated_on": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                            "request_json": {
-                                                "resources": resources,
-                                                "text": text,
-                                                "outputType": "audio"
-                                            }
-                                        }
-                                        st.code(json.dumps(initial_status, indent=2, ensure_ascii=False))
-                                        
-                                        st.rerun()
-                                    else:
-                                        st.error("❌ 发送音频生成请求失败")
-                                        # 显示错误详情
-                                        with st.expander("查看错误详情"):
-                                            st.code(f"""
-资源信息:
-{json.dumps(resources, indent=2)}
-
-提示文本:
-{text}
-                                            """)
-                                except Exception as e:
-                                    st.error(f"❌ 发送请求时出错: {str(e)}")
-                                    # 显示错误堆栈
-                                    with st.expander("查看错误堆栈"):
-                                        import traceback
-                                        st.code(traceback.format_exc())
-                except Exception as e:
-                    st.error(f"❌ 显示内容时出错: {str(e)}")
+                        st.markdown("### Episode Description")
+                        st.write(json_data.get('description', 'Description not available'))
+                        
+                        st.markdown("### Show Notes")
+                        st.write(json_data.get('show_notes', 'Show notes not available'))
+                    except json.JSONDecodeError:
+                        st.error("Invalid content format")
+                        st.text(content_data)
+            
+        except Exception as e:
+            st.error(f"Error displaying content: {str(e)}")
 
 # 状态显示区域
 if 'current_request_id' in st.session_state and st.session_state.current_request_id:
-    st.subheader("📊 处理状态")
+    st.subheader("📊 Processing Status")
     
     # 显示检查信息
     col1, col2 = st.columns(2)
     with col1:
         if 'check_count' not in st.session_state:
             st.session_state.check_count = 0
-        st.text(f"检查次数: {st.session_state.check_count}")
+        st.text(f"Check Count: {st.session_state.check_count}")
         check_time = datetime.now().strftime("%H:%M:%S")
-        st.text(f"最后检查: {check_time}")
+        st.text(f"Last Check: {check_time}")
     
     with col2:
         if 'start_time' not in st.session_state:
@@ -446,7 +403,7 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
         elapsed_time = int(time.time() - st.session_state.start_time)
         minutes = elapsed_time // 60
         seconds = elapsed_time % 60
-        st.text(f"处理时间: {minutes}分{seconds}秒")
+        st.text(f"Processing Time: {minutes}m {seconds}s")
     
     # 动态状态容器
     status_container = st.empty()
@@ -467,10 +424,10 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 # 显示状态文本
                 current_status = status_data.get("status", "unknown")
                 status_text = status_mapping.get(current_status, status_mapping["unknown"])
-                st.markdown(f"### 当前状态: {status_text}")
+                st.markdown(f"### Current Status: {status_text}")
                 
                 # 显示原始状态数据
-                st.markdown("### 原始状态返回")
+                st.markdown("### Raw Status Response")
                 # 清理 JSON 字符串中的控制字符
                 cleaned_data = {
                     k: str(v).replace('\n', ' ').replace('\r', '') 
@@ -484,120 +441,92 @@ if 'current_request_id' in st.session_state and st.session_state.current_request
                 if isinstance(current_status, (int, float)):
                     progress = min(int(current_status), 100)
                     st.progress(progress / 100)
-                    st.text(f"进度: {progress}%")
+                    st.text(f"Progress: {progress}%")
                 
                 # 显示音频（如果已生成）
                 if status_data.get("audio_url"):
-                    st.success("✨ 音频生成完成！")
+                    st.success("✨ Audio generation complete!")
                     st.audio(status_data["audio_url"])
-                    st.markdown(f"[📥 下载音频]({status_data['audio_url']})")
+                    st.markdown(f"[📥 Download Audio]({status_data['audio_url']})")
                     
-                    # 自动上传到 Podbean
+                    # Auto upload to Podbean
                     try:
-                        # 下载音频文件
-                        temp_wav = "temp_audio.wav"
-                        output_mp3 = "podcast_audio.mp3"
-                        
-                        audio_handler = AudioHandler()
-                        if audio_handler.download_audio(status_data["audio_url"], temp_wav):
-                            st.info("✓ 音频文件下载完成，正在转换格式...")
+                        if not st.session_state.get('upload_started', False):
+                            st.session_state.upload_started = True
                             
-                            if audio_handler.convert_wav_to_mp3(temp_wav, output_mp3):
-                                st.info("✓ 音频格式转换完成，正在上传到播客平台...")
+                            # Initialize Podbean client
+                            podbean = PodbeanClient(
+                                client_id=os.getenv("PODBEAN_CLIENT_ID"),
+                                client_secret=os.getenv("PODBEAN_CLIENT_SECRET")
+                            )
+                            
+                            # Initialize cloud storage
+                            cloud_storage = CloudStorage()
+                            
+                            # Download and upload to Cloudinary
+                            with st.spinner("Uploading to podcast platform..."):
+                                # Get content data
+                                content = st.session_state.get('content_data', {})
+                                if isinstance(content, str):
+                                    try:
+                                        content = json.loads(content)
+                                    except json.JSONDecodeError:
+                                        content = {}
+                                elif isinstance(content, CrewOutput):
+                                    content = {
+                                        'title': getattr(content, 'title', ''),
+                                        'description': getattr(content, 'description', ''),
+                                        'show_notes': getattr(content, 'show_notes', '')
+                                    }
                                 
-                                # 上传到 Podbean
-                                podbean_client = PodbeanUploader(
-                                    os.getenv("PODBEAN_CLIENT_ID"),
-                                    os.getenv("PODBEAN_CLIENT_SECRET")
-                                )
+                                # Upload to Cloudinary
+                                audio_url = status_data["audio_url"]
+                                cloudinary_url = cloud_storage.upload_audio(audio_url)
                                 
-                                # 获取上传授权
-                                upload_auth = podbean_client.authorize_file_upload(
-                                    "podcast_audio.mp3",
-                                    output_mp3
-                                )
-                                
-                                if upload_auth:
-                                    if podbean_client.upload_file_to_presigned_url(
-                                        upload_auth["presigned_url"],
-                                        output_mp3
-                                    ):
-                                        st.info("✓ 文件上传成功，正在发布播客...")
-                                        
-                                        # 发布播客
-                                        content_data = st.session_state.podcast_content
-                                        if isinstance(content_data, dict):
-                                            title = content_data.get('title')
-                                            description = content_data.get('description')
-                                        else:
-                                            # 如果是 CrewOutput 对象，尝试获取 raw 内容
-                                            if hasattr(content_data, 'raw'):
-                                                raw_content = content_data.raw
-                                                if isinstance(raw_content, str):
-                                                    # 移除可能的 JSON 代码块标记
-                                                    json_str = re.sub(r'^```json\s*|\s*```$', '', raw_content.strip())
-                                                    content_data = json.loads(json_str)
-                                                    title = content_data.get('title')
-                                                    description = content_data.get('description')
-                                                else:
-                                                    content_data = raw_content
-                                                    title = content_data.get('title')
-                                                    description = content_data.get('description')
-                                            else:
-                                                title = getattr(content_data, 'title', None)
-                                                description = getattr(content_data, 'description', None)
-                                        
-                                        if not title or not description:
-                                            raise ValueError("无法获取播客标题或描述")
-                                            
-                                        episode_data = podbean_client.publish_episode(
-                                            title=title,
-                                            content=description,
-                                            file_key=upload_auth["file_key"]
-                                        )
-                                        
-                                        if episode_data:
-                                            st.success("🎉 播客发布成功！")
-                                            st.markdown(f"[🎙️ 收听播客]({episode_data.get('episode_url')})")
-                                        else:
-                                            st.error("❌ 播客发布失败")
+                                if cloudinary_url:
+                                    # Prepare podcast data
+                                    podcast_data = {
+                                        'title': content.get('title', 'New AI Paper+ Episode'),
+                                        'content': content.get('description', '') + '\n\n' + content.get('show_notes', ''),
+                                        'status': 'publish',
+                                        'type': 'public',
+                                        'media_url': cloudinary_url
+                                    }
+                                    
+                                    # Upload to Podbean
+                                    upload_result = podbean.upload_episode(podcast_data)
+                                    
+                                    if upload_result.get('episode'):
+                                        st.success("✨ Episode published successfully!")
+                                        st.markdown(f"[🎙️ Listen on Podbean]({upload_result['episode'].get('permalink_url', '')})")
                                     else:
-                                        st.error("❌ 文件上传失败")
+                                        st.error("Failed to publish episode")
+                                        st.json(upload_result)
                                 else:
-                                    st.error("❌ 获取 Podbean 上传授权失败")
-                            else:
-                                st.error("❌ 音频格式转换失败")
-                        else:
-                            st.error("❌ 音频文件下载失败")
+                                    st.error("Failed to upload audio to cloud storage")
                             
-                        # 清理临时文件
-                        for temp_file in [temp_wav, output_mp3]:
-                            if os.path.exists(temp_file):
-                                os.remove(temp_file)
-                                
                     except Exception as e:
-                        st.error(f"❌ 发布过程中出错: {str(e)}")
+                        st.error(f"❌ Error during publishing: {str(e)}")
                     finally:
                         st.session_state.should_stop_check = True
-                        # 重置计数器
                         if 'start_time' in st.session_state:
                             del st.session_state.start_time
                 
                 # 显示错误信息
                 if status_data.get("error_message"):
-                    st.error(f"错误: {status_data['error_message']}")
+                    st.error(f"Error: {status_data['error_message']}")
                     st.session_state.should_stop_check = True
                     if 'start_time' in st.session_state:
                         del st.session_state.start_time
                 
                 # 自动刷新
                 if not st.session_state.should_stop_check:
-                    time.sleep(30)  # 每30秒检查一次
+                    time.sleep(30)  # Check every 30 seconds
                     st.rerun()
                     
     except Exception as e:
         with status_container:
-            st.error(f"状态更新出错: {str(e)}")
+            st.error(f"Status update error: {str(e)}")
         if not st.session_state.should_stop_check:
             time.sleep(30)
             st.rerun()
