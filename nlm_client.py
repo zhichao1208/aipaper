@@ -76,10 +76,7 @@ class NotebookLMClient:
             # 获取论文内容
             paper_content = self._get_paper_content(pdf_url)
             
-            resources = [
-                {"content": pdf_url, "type": "website"},
-                {"content": html_url, "type": "website"}
-            ]
+            resources = []
             
             if paper_content:
                 resources.append({"content": paper_content, "type": "text"})
